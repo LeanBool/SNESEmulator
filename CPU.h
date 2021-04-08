@@ -90,7 +90,7 @@ public:
 	void write(uint32_t address, uint8_t data);
 
 	void SetFlag(flags f, bool v);
-	uint16_t GetFlag(flags f);
+	uint8_t GetFlag(flags f);
 
 private:
 	struct INSTRUCTION {

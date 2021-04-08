@@ -75,7 +75,7 @@ void CPU::SetFlag(flags f, bool v)
     }
 }
 
-uint16_t CPU::GetFlag(flags f)
+uint8_t CPU::GetFlag(flags f)
 {
     return ((status & f) > 0) ? 1 : 0;
 }
