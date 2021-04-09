@@ -42,6 +42,17 @@ void Grafik::Graphix::Initialize(HWND hWnd,const ivec2& size)
 
 void Grafik::Graphix::Recreate()
 {
+    pRenderTargetView->Release();
+    pSwapChain->ResizeBuffers(1, 0, 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0);
+
+    ID3D11Texture2D* pBackbuffer = nullptr;
+    HRESULT res = pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&pBackbuffer);
+    _ASSERT(res == S_OK);
+    res = pDevice->CreateRenderTargetView(pBackbuffer, 0, &pRenderTargetView);
+    _ASSERT(res == S_OK);
+    pBackbuffer->Release();
+
+    pContext->OMSetRenderTargets(1, &pRenderTargetView, nullptr);
 }
 void Grafik::Graphix::BeginDrawing() const
 {
@@ -330,7 +341,6 @@ Grafik::Texture::Texture(const Graphix& gfx, const unsigned char* fontData)
     D3D11_SUBRESOURCE_DATA sd = {};
     sd.pSysMem = unwrappedFontData;
     sd.SysMemPitch = fontImageSize[0] * sizeof(fvec4);
-    Microsoft::WRL::ComPtr<ID3D11Texture2D> pTexture;
 
     HRESULT res = gfx.GetDevice()->CreateTexture2D(&td, &sd, &pTexture);
     _ASSERT(res == S_OK);
@@ -347,6 +357,7 @@ Grafik::Texture::Texture(const Graphix& gfx, const unsigned char* fontData)
 }
 Grafik::Texture::Texture(const Grafik::Graphix& gfx, const fvec4* col, const fvec2& size)
 {
+    this->size = size;
     D3D11_TEXTURE2D_DESC td = {};
     td.Width = size.x;
     td.Height = size.y;
@@ -356,14 +367,13 @@ Grafik::Texture::Texture(const Grafik::Graphix& gfx, const fvec4* col, const fve
     td.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
     td.SampleDesc.Count = 1;
     td.SampleDesc.Quality = 0;
-    td.Usage = D3D11_USAGE_DEFAULT;
+    td.Usage = D3D11_USAGE_DYNAMIC;
     td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-    td.CPUAccessFlags = 0;
+    td.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
     td.MiscFlags = 0;
     D3D11_SUBRESOURCE_DATA sd = {};
     sd.pSysMem = col;
     sd.SysMemPitch = size.x * sizeof(fvec4);
-    Microsoft::WRL::ComPtr<ID3D11Texture2D> pTexture;
 
     HRESULT res = gfx.GetDevice()->CreateTexture2D(&td, &sd, &pTexture);
     _ASSERT(res == S_OK);
@@ -378,6 +388,15 @@ Grafik::Texture::Texture(const Grafik::Graphix& gfx, const fvec4* col, const fve
 }
 Grafik::Texture::~Texture()
 {
+}
+void Grafik::Texture::OverrideData(const Graphix& gfx, const fvec4* col)
+{
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    HRESULT res = gfx.GetContext()->Map(pTexture.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    _ASSERT(res == S_OK);
+
+    memcpy(mappedResource.pData, col, sizeof(fvec4) * size.x * size.y);
+    gfx.GetContext()->Unmap(pTexture.Get(), 0);
 }
 void Grafik::Texture::Bind(const Graphix& gfx)
 {
@@ -446,6 +465,10 @@ Grafik::TexturedRectangle::TexturedRectangle(const Grafik::Graphix& gfx, const f
     vertBuf = std::move(VertexBuffer(gfx, 4, vertices));
     indBuf = std::move(IndexBuffer(gfx, 6, indices));
 }
+void Grafik::TexturedRectangle::OverrideData(const Graphix& gfx, const fvec4* col)
+{
+    texBuf.OverrideData(gfx, col);
+}
 void Grafik::TexturedRectangle::Draw(const Grafik::Graphix& gfx)
 {
     vertBuf.Bind(gfx);
@@ -459,6 +482,16 @@ void Grafik::TexturedRectangle::Draw(const Grafik::Graphix& gfx)
 
 
 std::atomic<int> Window::WinRefCounter;
+LRESULT CALLBACK Window::TempWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    if (msg == WM_NCCREATE)
+    {
+        SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)((CREATESTRUCT*)lParam)->lpCreateParams);
+
+        SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)StaticWindowProc);
+        return DefWindowProc(hWnd, msg, wParam, lParam);
+    }
+}
 LRESULT CALLBACK Window::StaticWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     Window* wnd = (Window*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
@@ -469,6 +502,10 @@ LRESULT Window::HandleWindowMessage(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 {
     switch (msg)
     {
+    case WM_SIZE:
+        gfx.Recreate();
+        break;
+
     default:
         break;
     }
@@ -489,7 +526,7 @@ void Window::mainthread(Window* wnd)
     WNDCLASSEX wndClass{ 0 };
     wndClass.cbSize = sizeof(wndClass);
     wndClass.style = CS_OWNDC;
-    wndClass.lpfnWndProc = Window::StaticWindowProc;
+    wndClass.lpfnWndProc = Window::TempWindowProc;
     wndClass.cbClsExtra = 0;
     wndClass.cbWndExtra = 0;
     wndClass.hInstance = hInstance;
@@ -516,6 +553,7 @@ void Window::mainthread(Window* wnd)
     Grafik::Blender blender(wnd->gfx, true);
     Grafik::Sampler sampler(wnd->gfx);
     Grafik::Texture fontTexture(wnd->gfx, font);
+
 
     ShowWindow(wnd->hWnd, SW_SHOWDEFAULT);
 

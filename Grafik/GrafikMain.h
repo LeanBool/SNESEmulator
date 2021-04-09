@@ -103,6 +103,8 @@ namespace Grafik
 		Texture() = default;
 		Texture(const Graphix& gfx, const unsigned char* fontData);
 		Texture(const Graphix& gfx, const fvec4* col, const fvec2& size);
+
+		void OverrideData(const Graphix& gfx, const fvec4* col);
 		
 		virtual ~Texture();
 		virtual void Bind(const Graphix& gfx) override;
@@ -110,7 +112,9 @@ namespace Grafik
 
 		Texture& operator=(Texture&& moved);
 	private:
+		Microsoft::WRL::ComPtr<ID3D11Texture2D> pTexture;
 		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> pTextureView;
+		fvec2 size;
 	};
 	class VertexBuffer : public Bindable
 	{
@@ -132,6 +136,7 @@ namespace Grafik
 	{
 	public:
 		TexturedRectangle(const Graphix& gfx, const fvec4* col, const fvec2& texSize, const fvec2& size, const fvec2& startPos = { -1.0f, 1.0f });
+		void OverrideData(const Graphix& gfx, const fvec4* col);
 		void Draw(const Graphix& gfx);
 
 	private:
@@ -139,6 +144,7 @@ namespace Grafik
 		IndexBuffer indBuf;
 		Texture texBuf;
 	};
+
 }
 
 
@@ -156,6 +162,7 @@ public:
 
 	static void mainthread(Window* wnd);
 private:
+	static LRESULT CALLBACK TempWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 	static LRESULT CALLBACK StaticWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 	LRESULT HandleWindowMessage(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
