@@ -11,27 +11,27 @@ public:
 
 public:
 	enum flags {
-		C = (1 << 0),
-		Z = (1 << 1),
-		I = (1 << 2),
-		D = (1 << 3),
-		INDEX = (1 << 4),
-		M = (1 << 5),
-		V = (1 << 6),
-		N = (1 << 8),
+		C = (1 << 0), // Carry
+		Z = (1 << 1), // Zero
+		I = (1 << 2), // IRQ disable
+		D = (1 << 3), // Decimal
+		INDEX = (1 << 4), // Index register size  
+		M = (1 << 5), // Accumulator register size 
+		V = (1 << 6), // Overflow
+		N = (1 << 8), // Negative
 	};
 
 	std::vector<std::vector<uint8_t>> memory;
 
-	uint16_t A = 0x0;
-	uint16_t X = 0x0;
+	uint16_t A = 0x0; // Accumulator
+	uint16_t X = 0x0; 
 	uint16_t Y = 0x0;
 	uint16_t SP = 0x0;
-	uint8_t DBR = 0x0;
-	uint16_t DP = 0x0;
-	uint8_t PBR = 0x0;
+	uint8_t DBR = 0x0; // Data bank register
+	uint16_t DP = 0x0; // Direct page register
+	uint8_t PBR = 0x0; // Program bank register
 	uint16_t PC = 0x0;
-	uint8_t status = 0x0;
+	uint8_t status = 0x0; // Status flags
 
 	uint8_t opcode = 0x0;
 	uint8_t cycles = 0x0;

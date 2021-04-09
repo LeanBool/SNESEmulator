@@ -83,7 +83,6 @@ uint8_t CPU::GetFlag(flags f)
 // addressing modes
 uint8_t CPU::ABS()
 {    
-    uint8_t additional_cycles = 0;
     uint16_t lo = read(PC);
     PC++;
     uint16_t hi = read(PC);
