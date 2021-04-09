@@ -24,39 +24,39 @@ public:
 	std::vector<std::vector<uint8_t>> memory;
 
 	uint16_t A = 0x0; // Accumulator
-	uint16_t X = 0x0; 
-	uint16_t Y = 0x0;
-	uint16_t SP = 0x0;
+	uint16_t X = 0x0; // X register
+	uint16_t Y = 0x0; // Y register
+	uint16_t SP = 0x0; // Stack pointer
 	uint8_t DBR = 0x0; // Data bank register
 	uint16_t DP = 0x0; // Direct page register
 	uint8_t PBR = 0x0; // Program bank register
-	uint16_t PC = 0x0;
+	uint16_t PC = 0x0; // Program counter
 	uint8_t status = 0x0; // Status flags
 
 	uint8_t opcode = 0x0;
 	uint8_t cycles = 0x0;
-	uint8_t fetched = 0x0;
+	uint16_t fetched = 0x0; // Data located at address_absolute (lo) and address_absolute+1 (hi)
 	uint32_t address_absolute = 0x0;
 	uint32_t address_relative = 0x0;
 
 	//Addressing modes
 	uint8_t ABS(); // absolute
-	uint8_t ABX(); // absolute, x
-	uint8_t ABY(); // absolute, y
+	uint8_t ABX(); // absolute indexed x
+	uint8_t ABY(); // absolute indexed y
 	uint8_t AII(); // absolute indexed indirect
 	uint8_t ABI(); // absolute indirect
 	uint8_t ABL(); // absolute long
-	uint8_t ABLX();  // absolute long indexed
+	uint8_t ABLX();  // absolute long indexed x
 	uint8_t ACC(); // accumulator
 	uint8_t BLM(); // block move
 	uint8_t DIR(); // direct 
 	uint8_t DIN(); // direct indirect
-	uint8_t DIX(); // direct indirect indexed
-	uint8_t DIXL(); // direct indirect indexed long
 	uint8_t DIL(); // direct indirect long
-	uint8_t DXI(); // direct indexed indirect
-	uint8_t DIRX(); // direct, x
-	uint8_t DIRY(); // direct, y
+	uint8_t DIX(); // direct indirect indexed, y addressing
+	uint8_t DIXL(); // direct indirect indexed long, y addressing
+	uint8_t DXI(); // direct indexed indirect, x addressing
+	uint8_t DIRX(); // direct indexed with x
+	uint8_t DIRY(); // direct indexed with y
 	uint8_t IMM(); // immediate
 	uint8_t IMP(); // implied
 	uint8_t REL(); // relative
@@ -83,14 +83,17 @@ public:
 	uint8_t TYA(); uint8_t TYX(); uint8_t TRB(); uint8_t TSB(); uint8_t WAI(); uint8_t WDM(); 
 	uint8_t XBA(); uint8_t XCE();
 
+	void clearMemory();
+	void clearRegisters();
+
 	void clock();
-	uint8_t fetch();
+	uint16_t fetch(); // fetches data located at address_absolute and address_absolute+1
 
 	uint8_t read(uint32_t address);
 	void write(uint32_t address, uint8_t data);
 
-	void SetFlag(flags f, bool v);
-	uint8_t GetFlag(flags f);
+	void SetFlag(flags f, bool v); // Set status flag, usage: SetFlag(C, 1) to set carry flag to 1
+	uint8_t GetFlag(flags f); 
 
 private:
 	struct INSTRUCTION {
@@ -100,6 +103,6 @@ private:
 		uint8_t cycles = 0;
 	};
 
-	std::vector<INSTRUCTION> lookup;
+	std::vector<INSTRUCTION> lookup; // opcode lookup table
 };
 

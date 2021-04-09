@@ -3,8 +3,8 @@
 CPU::CPU()
 {
     memory.resize(256);
-    for (int i = 0; i < 64; i++) {
-        memory[i].resize(262144);
+    for (int i = 0; i < 256; i++) {
+        memory[i].resize(65536);
     }
 
     lookup = {
@@ -31,6 +31,25 @@ CPU::~CPU()
 {
 }
 
+void CPU::clearMemory() 
+{
+    for (auto& row : memory) {
+        std::fill(row.begin(), row.end(), 0);
+    }
+}
+
+void CPU::clearRegisters() {
+    A = 0x0;
+    X = 0x0;
+    Y = 0x0;
+    SP = 0x0;
+    DBR = 0x0;
+    DP = 0x0;
+    PBR = 0x0;
+    PC = 0x0;
+    status = 0x0;
+}
+
 void CPU::clock()
 {
     if (cycles == 0) {
@@ -39,30 +58,32 @@ void CPU::clock()
 
         cycles = lookup[opcode].cycles;
 
-        uint8_t additional_cycles = (this->*lookup[opcode].address_mode)();
+        uint8_t additional_cycles1 = (this->*lookup[opcode].address_mode)();
         uint8_t additional_cycles2 = (this->*lookup[opcode].operate)();
 
-        cycles += (additional_cycles & additional_cycles2);
+        cycles += (additional_cycles1 + additional_cycles2);
     }
 
     cycles--;
 }
 
-uint8_t CPU::fetch()
+uint16_t CPU::fetch()
 {
     if (!(lookup[opcode].address_mode == &CPU::IMP))
-        fetched = read(address_absolute);
+        fetched = (read(address_absolute+1) << 8) | read(address_absolute);
     return fetched;
 }
 
 uint8_t CPU::read(uint32_t address)
 {
-    return memory[address & 0xFF0000][address & 0xFFFF];
+    printf("Reading from: bank: %02X, address: %04X\n", (address & 0xFF0000) >> 16, address & 0xFFFF);
+    return memory[(address & 0xFF0000) >> 16][address & 0xFFFF];
 }
 
 void CPU::write(uint32_t address, uint8_t data)
 {
-    memory[address & 0xFF0000][address & 0xFFFF] = data;
+    printf("Writing to: bank: %02X, address: %04X, val: %X\n", (address & 0xFF0000) >> 16, address & 0xFFFF, data);
+    memory[(address & 0xFF0000) >> 16][address & 0xFFFF] = data;
 }
 
 void CPU::SetFlag(flags f, bool v)
@@ -88,50 +109,122 @@ uint8_t CPU::ABS()
     uint16_t hi = read(PC);
     PC++;
 
-    uint32_t tmp = (DBR << 16) | (hi << 8) | lo;
+    uint32_t tmp = (hi << 8) | lo;
 
-    address_absolute = tmp;
-
-    if (GetFlag(M) == 0 || GetFlag(INDEX) == 0) {
-        return 1;
+    if (lookup[opcode].operate == &CPU::JMP || lookup[opcode].operate == &CPU::JSR) {
+        tmp |= (PBR << 16);
     }
+    else {
+        tmp |= (DBR << 16);
+    }
+    
+    address_absolute = tmp;
 
     return 0;
 }
 
 uint8_t CPU::ABX()
 {
-    return uint8_t();
+    uint16_t lo = read(PC);
+    PC++;
+    uint16_t hi = read(PC);
+    PC++;
+
+    uint32_t tmp = (DBR << 16) | (hi << 8) | lo;
+    tmp += X;
+    address_absolute = tmp;
+
+    if ((hi << 8) != (tmp & 0xFF00)) {
+        return 1;
+    }    
+
+    return 0;
 }
 
 uint8_t CPU::ABY()
 {
-    return uint8_t();
+    uint16_t lo = read(PC);
+    PC++;
+    uint16_t hi = read(PC);
+    PC++;
+
+    uint32_t tmp = (DBR << 16) | (hi << 8) | lo;
+    tmp += Y;
+    address_absolute = tmp;
+
+    if ((hi << 8) != (tmp & 0xFF00)) {
+        return 1;
+    }
+
+    return 0;
 }
 
 uint8_t CPU::AII()
 {
-    return uint8_t();
+    uint16_t lo = read(PC);
+    PC++;
+    uint16_t hi = read(PC);
+    PC++;
+
+    uint32_t tmp = (((hi << 8) | lo) + X) & 0xFFFF;
+    tmp |= (PBR << 16);
+
+    lo = read(tmp);
+    hi = read(tmp + 1);
+
+    address_absolute = (PBR << 16) | (hi << 8) | lo;
+
+    return 0;
 }
 
 uint8_t CPU::ABI()
 {
-    return uint8_t();
+    uint16_t lo = read(PC);
+    PC++;
+    uint16_t hi = read(PC);
+    PC++;
+
+    uint32_t tmp = (hi << 8) | lo;
+    lo = read(tmp);
+    hi = read(tmp + 1);
+
+    address_absolute = (PBR << 16) | (hi << 8) | lo;
+
+    return 0;
 }
 
 uint8_t CPU::ABL()
 {
-    return uint8_t();
+    uint16_t lo = read(PC);
+    PC++;
+    uint16_t hi = read(PC);
+    PC++;
+    uint16_t bank = read(PC);
+    PC++;
+
+    address_absolute = (bank << 16) | (hi << 8) | lo;
+
+    return 0;
 }
 
 uint8_t CPU::ABLX()
 {
-    return uint8_t();
+    uint16_t lo = read(PC);
+    PC++;
+    uint16_t hi = read(PC);
+    PC++;
+    uint16_t bank = read(PC);
+    PC++;
+
+    address_absolute = (((bank << 16) | (hi << 8) | lo) + X) & 0xFFFFFF;
+
+    return 0;
 }
 
 uint8_t CPU::ACC()
 {
-    return uint8_t();
+    address_absolute = A;
+    return 0;
 }
 
 uint8_t CPU::BLM()
@@ -141,12 +234,24 @@ uint8_t CPU::BLM()
 
 uint8_t CPU::DIR()
 {
-    return uint8_t();
+    uint16_t operand = read(PC);
+    PC++;
+    operand += DP;
+    address_absolute = operand;
+    return 0;
 }
 
 uint8_t CPU::DIN()
 {
-    return uint8_t();
+    uint16_t operand = read(PC);
+    PC++;
+    operand += DP;
+
+    uint16_t lo = read(operand);
+    uint16_t hi = read(operand + 1);
+
+    address_absolute = (DBR << 16) | (hi << 8) | lo;
+    return 0;
 }
 
 uint8_t CPU::DIX()
@@ -181,7 +286,9 @@ uint8_t CPU::DIRY()
 
 uint8_t CPU::IMM()
 {
-    return uint8_t();
+    address_absolute = PC;
+    PC += 2;
+    return 0;
 }
 
 uint8_t CPU::IMP()
@@ -222,6 +329,12 @@ uint8_t CPU::ADC()
 
 uint8_t CPU::AND()
 {
+    fetch();
+    A &= fetched;
+
+    SetFlag(Z, A == 0x0);
+    SetFlag(N, A & 0x8000);
+
     return uint8_t();
 }
 
@@ -292,22 +405,26 @@ uint8_t CPU::BVS()
 
 uint8_t CPU::CLC()
 {
-    return uint8_t();
+    SetFlag(C, 0);
+    return 0;
 }
 
 uint8_t CPU::CLD()
 {
-    return uint8_t();
+    SetFlag(D, 0);
+    return 0;
 }
 
 uint8_t CPU::CLI()
 {
-    return uint8_t();
+    SetFlag(I, 0);
+    return 0;
 }
 
 uint8_t CPU::CLV()
 {
-    return uint8_t();
+    SetFlag(V, 0);
+    return 0;
 }
 
 uint8_t CPU::CMP()
@@ -367,7 +484,9 @@ uint8_t CPU::INY()
 
 uint8_t CPU::JMP()
 {
-    return uint8_t();
+    PC = address_absolute;
+    printf("Jumping to %X\n", PC);
+    return 0;
 }
 
 uint8_t CPU::JML()
@@ -389,9 +508,6 @@ uint8_t CPU::LDA()
 {
     fetch();
     A = fetched;
-    SetFlag(N, A & 0x8000);
-    SetFlag(Z, A == 0x0);
-
     return 0;
 }
 

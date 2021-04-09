@@ -141,10 +141,6 @@ namespace Grafik
 	};
 }
 
-
-
-
-
 class Window
 {
 public:
