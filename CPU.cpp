@@ -256,12 +256,35 @@ uint8_t CPU::DIN()
 
 uint8_t CPU::DIX()
 {
-    return uint8_t();
+    uint16_t operand = read(PC);
+    PC++;
+    operand += DP;
+
+    uint16_t lo = read(operand);
+    uint16_t hi = read(operand + 1);
+
+    uint32_t tmp = (DBR << 16) | (hi << 8) | lo;
+    tmp += Y;
+    address_absolute = tmp & 0xFFFFFF;
+
+    return 0;
 }
 
 uint8_t CPU::DIXL()
 {
-    return uint8_t();
+    uint16_t operand = read(PC);
+    PC++;
+    operand += DP;
+
+    uint16_t lo = read(operand);
+    uint16_t hi = read(operand + 1);
+    uint16_t bank = read(operand + 2);
+
+    uint32_t tmp = (bank << 16) | (hi << 8) | lo;
+    tmp += Y;
+    address_absolute = tmp & 0xFFFFFF;
+
+    return 0;
 }
 
 uint8_t CPU::DIL()
@@ -293,7 +316,7 @@ uint8_t CPU::IMM()
 
 uint8_t CPU::IMP()
 {
-    return uint8_t();
+    return 0;
 }
 
 uint8_t CPU::REL()
@@ -485,7 +508,6 @@ uint8_t CPU::INY()
 uint8_t CPU::JMP()
 {
     PC = address_absolute;
-    printf("Jumping to %X\n", PC);
     return 0;
 }
 
@@ -663,17 +685,20 @@ uint8_t CPU::SBC()
 
 uint8_t CPU::SEC()
 {
-    return uint8_t();
+    SetFlag(C, 1);
+    return 0;
 }
 
 uint8_t CPU::SED()
 {
-    return uint8_t();
+    SetFlag(D, 1);
+    return 0;
 }
 
 uint8_t CPU::SEI()
 {
-    return uint8_t();
+    SetFlag(I, 1);
+    return 0;
 }
 
 uint8_t CPU::SEP()
