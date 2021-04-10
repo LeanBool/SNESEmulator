@@ -364,6 +364,13 @@ uint8_t CPU::REL()
 
 uint8_t CPU::RELL()
 {
+    uint16_t lo = read((PBR << 16) | PC);    
+    PC++;
+    uint16_t hi = read((PBR << 16) | PC);
+    PC++;
+
+    uint32_t tmp = (hi << 8) | lo;
+
     return uint8_t();
 }
 

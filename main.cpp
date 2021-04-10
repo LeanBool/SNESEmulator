@@ -167,6 +167,8 @@ bool testIMM(CPU& cpu) {
 int main() {
 	CPU cpu;
 
+	int16_t operand = 0;
+
 	bool abs = testABS(cpu);
 	bool abx = testABX(cpu);
 	bool aby = testABY(cpu);
