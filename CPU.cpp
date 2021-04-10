@@ -168,7 +168,7 @@ uint8_t CPU::AII()
     PC++;
 
     uint32_t tmp = (((hi << 8) | lo) + X) & 0xFFFF;
-    tmp |= (PBR << 16);
+    tmp |= (PBR << 16); // wirklich PBR?
 
     lo = read(tmp);
     hi = read(tmp + 1);
@@ -230,12 +230,12 @@ uint8_t CPU::ACC()
 
 uint8_t CPU::BLM()
 {
-    //uint8_t dest = read((PBR << 16) | DBR);   KEINE AHNUNG WAS ICH HIER GEMACHT HAB;
-    //PC++;
-    //uint8_t src = read((PBR << 16) | DBR);
-    //PC++;
-    //address_absolute = (dest << 8) | src;
-    return uint8_t();
+    uint8_t lo = read((PBR << 16) | PC); 
+    PC++;
+    uint8_t hi = read((PBR << 16) | PC);
+    PC++;
+    address_absolute = ((DBR << 16) | (hi << 8) | lo) & 0xFFFFFF;
+    return 0;
 }
 
 uint8_t CPU::DIR()
@@ -299,7 +299,7 @@ uint8_t CPU::DIL()
     PC++;
     operand += DP;
 
-    uint16_t lo = read(operand);
+    uint16_t lo = read( (DBR << 16) | operand);
     uint16_t hi = read(operand + 1);
     uint16_t bank = read(operand + 2);
 
@@ -359,7 +359,12 @@ uint8_t CPU::IMP()
 
 uint8_t CPU::REL()
 {
-    return uint8_t();
+    int16_t operand = (int8_t)read((PBR << 16) | PC);
+    PC++;
+
+    operand += PC;
+    address_absolute = (PBR << 16) | operand;
+    return 0;
 }
 
 uint8_t CPU::RELL()
