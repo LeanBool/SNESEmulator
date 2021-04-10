@@ -300,7 +300,7 @@ uint8_t CPU::DIL()
     PC++;
     operand += DP;
 
-    uint16_t lo = read( (DBR << 16) | operand);
+    uint16_t lo = read(operand);
     uint16_t hi = read(operand + 1);
     uint16_t bank = read(operand + 2);
 
@@ -375,9 +375,10 @@ uint8_t CPU::RELL()
     uint16_t hi = read((PBR << 16) | PC);
     PC++;
 
-    uint32_t tmp = (hi << 8) | lo;
+    uint16_t tmp = (int16_t)((hi << 8) | lo) + PC;
+    address_absolute = (PBR << 16) | tmp;
 
-    return uint8_t();
+    return 0;
 }
 
 uint8_t CPU::STK()
@@ -478,12 +479,38 @@ uint8_t CPU::ASL()
 
 uint8_t CPU::BCC()
 {
-    return uint8_t();
+    uint8_t additionalCycles = 0;
+    if (GetFlag(C) == 0) {
+        additionalCycles++;
+        uint16_t previousPage = PC & 0xFF00;
+        PC = address_absolute;
+
+        if (emulation_mode) {
+            if ((PC & 0xFF00) != previousPage) {
+                additionalCycles++;
+            }
+        }
+    }
+
+    return additionalCycles;
 }
 
 uint8_t CPU::BCS()
 {
-    return uint8_t();
+    uint8_t additionalCycles = 0;
+    if (GetFlag(C) == 1) {
+        additionalCycles++;
+        uint16_t previousPage = PC & 0xFF00;
+        PC = address_absolute;
+
+        if (emulation_mode) {
+            if ((PC & 0xFF00) != previousPage) {
+                additionalCycles++;
+            }
+        }
+    }
+
+    return additionalCycles;
 }
 
 uint8_t CPU::BEQ()
@@ -514,7 +541,20 @@ uint8_t CPU::BEQ()
 
 uint8_t CPU::BIT()
 {
-    return uint8_t();
+    fetch();
+
+    if (emulation_mode) {
+        SetFlag(N, fetched & 0x80);
+        SetFlag(V, fetched & 0x40);
+        SetFlag(Z, ((fetched & 0xFF) & (A & 0xFF)) != 0x0);
+    }
+    else {
+        SetFlag(N, fetched & 0x8000);
+        SetFlag(V, fetched & 0x4000);
+        SetFlag(Z, (fetched & A) != 0x0);
+    }
+
+    return 0;
 }
 
 uint8_t CPU::BMI()
