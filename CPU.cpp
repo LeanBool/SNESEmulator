@@ -54,7 +54,7 @@ void CPU::clearRegisters() {
 void CPU::clock()
 {
     if (cycles == 0) {
-        opcode = read(PC);
+        opcode = read((PBR << 16) | PC);
         PC++;
 
         cycles = lookup[opcode].cycles;
@@ -105,9 +105,9 @@ uint8_t CPU::GetFlag(flags f)
 // addressing modes
 uint8_t CPU::ABS()
 {    
-    uint16_t lo = read(PC);
+    uint16_t lo = read((PBR << 16) | PC);
     PC++;
-    uint16_t hi = read(PC);
+    uint16_t hi = read((PBR << 16) | PC);
     PC++;
 
     uint32_t tmp = (hi << 8) | lo;
@@ -126,9 +126,9 @@ uint8_t CPU::ABS()
 
 uint8_t CPU::ABX()
 {
-    uint16_t lo = read(PC);
+    uint16_t lo = read((PBR << 16) | PC);
     PC++;
-    uint16_t hi = read(PC);
+    uint16_t hi = read((PBR << 16) | PC);
     PC++;
 
     uint32_t tmp = (DBR << 16) | (hi << 8) | lo;
@@ -144,9 +144,9 @@ uint8_t CPU::ABX()
 
 uint8_t CPU::ABY()
 {
-    uint16_t lo = read(PC);
+    uint16_t lo = read((PBR << 16) | PC);
     PC++;
-    uint16_t hi = read(PC);
+    uint16_t hi = read((PBR << 16) | PC);
     PC++;
 
     uint32_t tmp = (DBR << 16) | (hi << 8) | lo;
@@ -162,9 +162,9 @@ uint8_t CPU::ABY()
 
 uint8_t CPU::AII()
 {
-    uint16_t lo = read(PC);
+    uint16_t lo = read((PBR << 16) | PC);
     PC++;
-    uint16_t hi = read(PC);
+    uint16_t hi = read((PBR << 16) | PC);
     PC++;
 
     uint32_t tmp = (((hi << 8) | lo) + X) & 0xFFFF;
@@ -180,9 +180,9 @@ uint8_t CPU::AII()
 
 uint8_t CPU::ABI()
 {
-    uint16_t lo = read(PC);
+    uint16_t lo = read((PBR << 16) | PC);
     PC++;
-    uint16_t hi = read(PC);
+    uint16_t hi = read((PBR << 16) | PC);
     PC++;
 
     uint32_t tmp = (hi << 8) | lo;
@@ -196,11 +196,11 @@ uint8_t CPU::ABI()
 
 uint8_t CPU::ABL()
 {
-    uint16_t lo = read(PC);
+    uint16_t lo = read((PBR << 16) | PC);
     PC++;
-    uint16_t hi = read(PC);
+    uint16_t hi = read((PBR << 16) | PC);
     PC++;
-    uint16_t bank = read(PC);
+    uint16_t bank = read((PBR << 16) | PC);
     PC++;
 
     address_absolute = (bank << 16) | (hi << 8) | lo;
@@ -210,11 +210,11 @@ uint8_t CPU::ABL()
 
 uint8_t CPU::ABLX()
 {
-    uint16_t lo = read(PC);
+    uint16_t lo = read((PBR << 16) | PC);
     PC++;
-    uint16_t hi = read(PC);
+    uint16_t hi = read((PBR << 16) | PC);
     PC++;
-    uint16_t bank = read(PC);
+    uint16_t bank = read((PBR << 16) | PC);
     PC++;
 
     address_absolute = (((bank << 16) | (hi << 8) | lo) + X) & 0xFFFFFF;
@@ -240,7 +240,7 @@ uint8_t CPU::BLM()
 
 uint8_t CPU::DIR()
 {
-    uint16_t operand = read(PC);
+    uint16_t operand = read((PBR << 16) | PC);
     PC++;
     operand += DP;
     address_absolute = operand;
@@ -249,7 +249,7 @@ uint8_t CPU::DIR()
 
 uint8_t CPU::DIN()
 {
-    uint16_t operand = read(PC);
+    uint16_t operand = read((PBR << 16) | PC);
     PC++;
     operand += DP;
 
@@ -262,7 +262,7 @@ uint8_t CPU::DIN()
 
 uint8_t CPU::DIX()
 {
-    uint16_t operand = read(PC);
+    uint16_t operand = read((PBR << 16) | PC);
     PC++;
     operand += DP;
 
@@ -278,7 +278,7 @@ uint8_t CPU::DIX()
 
 uint8_t CPU::DIXL()
 {
-    uint16_t operand = read(PC);
+    uint16_t operand = read((PBR << 16) | PC);
     PC++;
     operand += DP;
 
@@ -345,7 +345,7 @@ uint8_t CPU::STK()
 
 uint8_t CPU::SREL()
 {
-    uint8_t operand = read(PC);
+    uint8_t operand = read((PBR << 16) | PC);
     address_absolute = SP + operand;
 
     return 0;
