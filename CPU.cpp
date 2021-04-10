@@ -295,22 +295,53 @@ uint8_t CPU::DIXL()
 
 uint8_t CPU::DIL()
 {
-    return uint8_t();
+    uint16_t operand = read((PBR << 16) | PC);
+    PC++;
+    operand += DP;
+
+    uint16_t lo = read(operand);
+    uint16_t hi = read(operand + 1);
+    uint16_t bank = read(operand + 2);
+
+    address_absolute = (bank << 16) | (hi << 8) | lo;
+
+    return 0;
 }
 
 uint8_t CPU::DXI()
 {
-    return uint8_t();
+    uint16_t operand = read((PBR << 16) | PC);
+    PC++;
+    operand += DP + X;
+
+    uint16_t lo = read(operand);
+    uint16_t hi = read(operand + 1);
+
+    address_absolute = (DBR << 16) | (hi << 8) | lo;
+
+    return 0;
 }
 
 uint8_t CPU::DIRX()
 {
-    return uint8_t();
+    uint16_t operand = read((PBR << 16) | PC);
+    PC++;
+    operand += DP + X;
+
+    address_absolute = operand & 0xFFFFFF;
+
+    return 0;
 }
 
 uint8_t CPU::DIRY()
 {
-    return uint8_t();
+    uint16_t operand = read((PBR << 16) | PC);
+    PC++;
+    operand += DP + Y;
+
+    address_absolute = operand & 0xFFFFFF;
+
+    return 0;
 }
 
 uint8_t CPU::IMM() // TODO: Unterschied in Emulation Mode vs Native Mode!!!
