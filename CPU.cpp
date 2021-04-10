@@ -3,6 +3,7 @@
 CPU::CPU()
 {
     memory.resize(256);
+    emulation_mode = true;
     for (int i = 0; i < 256; i++) {
         memory[i].resize(65536);
     }
@@ -223,12 +224,17 @@ uint8_t CPU::ABLX()
 
 uint8_t CPU::ACC()
 {
-    address_absolute = A;
+    address_absolute = A; //PC verschieben?
     return 0;
 }
 
 uint8_t CPU::BLM()
 {
+    //uint8_t dest = read((PBR << 16) | DBR);   KEINE AHNUNG WAS ICH HIER GEMACHT HAB;
+    //PC++;
+    //uint8_t src = read((PBR << 16) | DBR);
+    //PC++;
+    //address_absolute = (dest << 8) | src;
     return uint8_t();
 }
 
@@ -289,25 +295,54 @@ uint8_t CPU::DIXL()
 
 uint8_t CPU::DIL()
 {
-    return uint8_t();
+    uint16_t operand = read(PC);
+    PC++;
+    operand += DP;
+    uint8_t lo = read(operand);
+    uint8_t hi = read(operand + 1);
+    uint8_t bank = read(operand + 2);
+    
+    address_absolute = ((bank << 16) | (hi << 8) | lo) & 0xFFFFF;
+    return 0;
 }
 
 uint8_t CPU::DXI()
 {
-    return uint8_t();
+    uint16_t operand = read(PC);
+    PC++;
+    operand += DP;
+    operand += X;
+
+    uint8_t lo = read(operand);
+    uint8_t hi = read(operand + 1);
+
+    address_absolute = ((DBR << 16) | (hi << 8) | lo) & 0xFFFFF;
+    return 0;
 }
 
 uint8_t CPU::DIRX()
 {
-    return uint8_t();
+    uint16_t operand = read(PC);
+    PC++;
+    operand += X;
+    operand += DP;
+
+    address_absolute = operand;
+    return 0;
 }
 
 uint8_t CPU::DIRY()
 {
-    return uint8_t();
+    uint16_t operand = read(PC);
+    PC++;
+    operand += Y;
+    operand += DP;
+
+    address_absolute = operand;
+    return 0;
 }
 
-uint8_t CPU::IMM()
+uint8_t CPU::IMM() // TODO: Unterschied in Emulation Mode vs Native Mode!!!
 {
     address_absolute = PC;
     PC += 2;
@@ -316,6 +351,7 @@ uint8_t CPU::IMM()
 
 uint8_t CPU::IMP()
 {
+    PC++;
     return 0;
 }
 
@@ -331,12 +367,17 @@ uint8_t CPU::RELL()
 
 uint8_t CPU::STK()
 {
-    return uint8_t();
+    PC++;
+    address_absolute = SP; //Hier aufpassen, eigentlich sollte das nix machen, da die einzelnen instr. Die Arbeit machen, aber sonst wäre der address_abs undefined.
+    return 0;
 }
 
 uint8_t CPU::SREL()
 {
-    return uint8_t();
+    uint8_t operand = read(PC);
+    address_absolute = SP + operand;
+
+    return 0;
 }
 
 uint8_t CPU::SRII()
@@ -452,7 +493,32 @@ uint8_t CPU::CLV()
 
 uint8_t CPU::CMP()
 {
-    return uint8_t();
+    uint8_t zusatzCycle = 0;
+    if (GetFlag(M))
+    {
+        zusatzCycle += 1;
+    }
+    if ((DP & 0xFF) != 0)
+    {
+        zusatzCycle += 1;
+    }
+    if (emulation_mode)
+    {
+        fetched = fetch() & 0xff;
+        uint16_t res = (A & 0xff) - fetched;
+        SetFlag(C, ((A & 0xff) >=  (fetched & 0xFF)));
+        SetFlag(Z, res == 0);
+        SetFlag(N, (res & 0x80));
+    }
+    else
+    {
+        fetch();
+        uint16_t res = A - fetched;
+        SetFlag(C, (A >= fetched));
+        SetFlag(Z, res == 0);
+        SetFlag(N, (res & 0x8000));
+    }
+    return zusatzCycle;
 }
 
 uint8_t CPU::CPX()
@@ -570,12 +636,22 @@ uint8_t CPU::ORA()
 
 uint8_t CPU::PEA()
 {
-    return uint8_t();
+    uint8_t lo = read((PBR << 16) | PC);// wie in STK angemerkt zieht sich die Inst. die daten selber
+    PC++;
+    uint8_t hi = read((PBR << 16) | PC);
+    PC++;
+    write((DBR << 16) | SP, hi);
+    SP--;
+    write(SP, lo);
+    SP--;
+    return 0;
 }
 
 uint8_t CPU::PEI()
 {
-    return uint8_t();
+    uint8_t zusatzCycle = (DP == 0) ? 0 : 1;
+
+    return zusatzCycle;
 }
 
 uint8_t CPU::PER()
@@ -818,5 +894,13 @@ uint8_t CPU::XBA()
 
 uint8_t CPU::XCE()
 {
-    return uint8_t();
+    bool prev = emulation_mode;
+    emulation_mode = GetFlag(C);
+    SetFlag(C, prev);
+    if (!emulation_mode)
+    {
+         SetFlag(M, true);
+         SetFlag(INDEX, true);
+    }
+    return 0;
 }

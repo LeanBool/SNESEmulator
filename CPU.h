@@ -15,11 +15,12 @@ public:
 		Z = (1 << 1), // Zero
 		I = (1 << 2), // IRQ disable
 		D = (1 << 3), // Decimal
-		INDEX = (1 << 4), // Index register size  
-		M = (1 << 5), // Accumulator register size 
+		INDEX = (1 << 4), // Index register size  / Break in Emulation mode
+		M = (1 << 5), // Accumulator register size / Unused in Emulation mode
 		V = (1 << 6), // Overflow
 		N = (1 << 8), // Negative
 	};
+
 
 	std::vector<std::vector<uint8_t>> memory;
 
@@ -32,6 +33,7 @@ public:
 	uint8_t PBR = 0x0; // Program bank register
 	uint16_t PC = 0x0; // Program counter
 	uint8_t status = 0x0; // Status flags
+	bool emulation_mode;
 
 	uint8_t opcode = 0x0;
 	uint8_t cycles = 0x0;
@@ -94,6 +96,7 @@ public:
 
 	void SetFlag(flags f, bool v); // Set status flag, usage: SetFlag(C, 1) to set carry flag to 1
 	uint8_t GetFlag(flags f); 
+
 
 private:
 	struct INSTRUCTION {
