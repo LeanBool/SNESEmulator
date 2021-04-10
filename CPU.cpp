@@ -1,5 +1,6 @@
 #include "CPU.h"
 
+std::vector<CPU::INSTRUCTION> CPU::lookup;
 CPU::CPU()
 {
     memory.resize(256);
@@ -388,7 +389,7 @@ uint8_t CPU::STK()
 
 uint8_t CPU::SREL()
 {
-    uint8_t operand = read((PBR << 16) | PC);
+    int8_t operand = (int8_t)read((PBR << 16) | PC);
     address_absolute = SP + operand;
 
     return 0;
@@ -396,7 +397,19 @@ uint8_t CPU::SREL()
 
 uint8_t CPU::SRII()
 {
-    return uint8_t();
+    uint8_t operand = read((PBR << 16) | PC);
+    uint8_t lo = read(operand);
+    uint8_t hi = read(operand + 1);
+    uint16_t inaddr = (hi << 8) | lo;
+    if (emulation_mode)
+    {
+        address_absolute = (Y & 0xFF) + inaddr;
+    }
+    else
+    {
+        address_absolute = Y + inaddr;
+    }
+    return 0;
 }
 
 // opcodes
@@ -418,7 +431,49 @@ uint8_t CPU::AND()
 
 uint8_t CPU::ASL()
 {
-    return uint8_t();
+    fetch();
+    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1; 
+    uint32_t res = (uint32_t)fetched << 1;
+    if (emulation_mode)
+    {
+        if (address_absolute & 0xFF000000)
+        {
+            zusatzCycle -= 1;
+        }
+        SetFlag(C, (res & 0xFFFFFF00));
+        SetFlag(Z, ((res & 0xFF) == 0));
+        SetFlag(N, (res & 0x80));
+        if (lookup[opcode].operate == &CPU::IMP)
+        {
+            A = res & 0xFF;
+        }
+        else
+        {
+            write(address_absolute, (res & 0xFF));
+        }
+    }
+    else
+    {
+        if (GetFlag(M))
+        {
+            zusatzCycle += 2;
+
+        }
+        
+        SetFlag(C, (res & 0xFFFF0000));
+        SetFlag(Z, ((res & 0xFFFF) == 0));
+        SetFlag(N, (res & 0x8000));
+        if (lookup[opcode].operate == &CPU::IMP)
+        {
+            A = res & 0xFFFF;
+        }
+        else
+        {
+            write(address_absolute, (res & 0xFFFF));
+        }
+    }
+
+    return zusatzCycle;
 }
 
 uint8_t CPU::BCC()
@@ -433,7 +488,28 @@ uint8_t CPU::BCS()
 
 uint8_t CPU::BEQ()
 {
-    return uint8_t();
+    uint8_t zusatzCycle = 0;
+    if (GetFlag(Z))
+    {
+        zusatzCycle += 1;
+        int16_t val = (int8_t)fetch();
+        PC += val;
+        if (emulation_mode)
+        {
+            if (address_absolute & 0xFFFF0000)
+            {
+                zusatzCycle += 1;
+            }
+        }
+        else
+        {
+            if (address_absolute & 0xFF000000)
+            {
+                zusatzCycle += 1;
+            }
+        }
+    }
+    return zusatzCycle;
 }
 
 uint8_t CPU::BIT()

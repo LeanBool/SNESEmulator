@@ -106,6 +106,6 @@ private:
 		uint8_t cycles = 0;
 	};
 
-	std::vector<INSTRUCTION> lookup; // opcode lookup table
+	static std::vector<INSTRUCTION> lookup; // opcode lookup table
 };
 
