@@ -15,13 +15,6 @@ namespace Grafik
 		fvec4 color;
 		fvec2 texPos;
 	};
-	enum Start
-	{
-		topleft,
-		topright,
-		bottomleft,
-		bottomright
-	};
 	class Graphix
 	{
 	public:

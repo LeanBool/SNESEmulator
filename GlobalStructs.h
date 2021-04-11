@@ -128,3 +128,62 @@ struct bvec4
 	bvec4& operator/(const bvec4& other) { this->x /= other.x; this->y /= other.y; this->z /= other.z; this->w /= other.w; return *this; }
 	bvec4& operator/(const float& other) { this->x /= other; this->y /= other; this->z /= other; this->w /= other; return *this; }
 };
+struct fRec
+{
+	enum Start
+	{
+		topleft,
+		topright,
+		bottomleft,
+		bottomright
+	};
+	fRec(const fvec2& pos,const fvec2& size, Start start = topleft)
+	{
+		recSize = size;
+		if (start == topleft)
+		{
+			topLeft = pos;
+		}
+		else if (start == topright)
+		{
+			topLeft = { pos.x - size.x,  pos.y };
+		}
+		else if (start == bottomleft)
+		{
+			topLeft = { pos.x, pos.y - size.y };
+		}
+		else
+		{
+			topLeft = { pos.x - size.x, pos.y - size.y };
+		}
+		topRight = { topLeft.x + size.x, topLeft.y };
+		bottomLeft = { topLeft.x, topLeft.y - size.y };
+		bottomRight = { topLeft.x + size.x, topLeft.y - size.y };
+	}
+	fRec()
+	{
+		recSize = { 0,0 };
+		topLeft = { 0,0 };
+		topRight = { 0,0 };
+		bottomLeft = { 0,0 };
+		bottomRight = { 0,0 };
+	}
+
+	bool vecInRec(const fvec2& pos)
+	{
+		if (pos.x > topLeft.x && pos.x < topLeft.x + recSize.x)
+		{
+			if (pos.y > topLeft.y - recSize.y && pos.y < topLeft.y)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	fvec2 topLeft;
+	fvec2 topRight;
+	fvec2 bottomLeft;
+	fvec2 bottomRight;
+	fvec2 recSize;
+};

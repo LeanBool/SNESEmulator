@@ -172,11 +172,15 @@ public:
 
 	void Draw(Grafik::Graphix& gfx)
 	{
-		float numZeilen = 1.0f / usedFontSize;
+		float numZeilen = 2.0f / usedFontSize;
 		y_size = numZeilen / (float)zeilen.size();
-		if (y_size > 1.0f)
+		if (y_size > 2.0f)
 		{
-			y_size = 1.0f;
+			y_size = 2.0f;
+		}
+		if(y_size < 0.01f)
+		{
+			y_size = 0.01f;
 		}
 
 		vertices[4].pos = { BarBaseTopLeft.x, y_aktuell + y_size};
