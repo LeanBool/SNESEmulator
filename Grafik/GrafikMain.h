@@ -15,6 +15,13 @@ namespace Grafik
 		fvec4 color;
 		fvec2 texPos;
 	};
+	enum Start
+	{
+		topleft,
+		topright,
+		bottomleft,
+		bottomright
+	};
 	class Graphix
 	{
 	public:
@@ -130,7 +137,7 @@ namespace Grafik
 		Microsoft::WRL::ComPtr<ID3D11Buffer> pVertexBuffer;
 		UINT stride;
 	};
-
+	extern Texture fontTexture;
 	
 	class TexturedRectangle
 	{
@@ -144,19 +151,30 @@ namespace Grafik
 		IndexBuffer indBuf;
 		Texture texBuf;
 	};
-
+	class String
+	{
+	public:
+		String(const Graphix& gfx, const fvec4& col, const std::string& str, const fvec2& startpos, const float size = 0.08f);
+		void Draw(const Graphix& gfx);
+	private:
+		UINT numInds;
+		VertexBuffer vertBuf;
+		IndexBuffer indBuf;
+	};
 }
 
 class Window
 {
 public:
-	Window(const std::wstring& WindowName, void(_fastcall* DrawFunktion)(Grafik::Graphix& gfx));
+	Window(const std::wstring& WindowName, void(_fastcall* DrawFunktion)(Grafik::Graphix& gfx), void(_fastcall* MSGCallbackFunktion)(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam));
 	~Window();
 
 	static bool Activ();
 
 
 	static void mainthread(Window* wnd);
+
+	std::atomic<bool> initialized;
 private:
 	static LRESULT CALLBACK TempWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 	static LRESULT CALLBACK StaticWindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -170,5 +188,7 @@ private:
 	HWND hWnd;
 	static std::atomic<int> WinRefCounter;
 	void(_fastcall* callbackFunktion)(Grafik::Graphix& gfx) = nullptr;
+	void(_fastcall* MSGCallbackFunktion)(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) = nullptr;
 	HANDLE drawThreadHandle;
+	
 };

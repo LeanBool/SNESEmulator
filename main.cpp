@@ -1,5 +1,5 @@
 #include <stdio.h>
-
+#include "Debugging/Debugger.h"
 #include "CPU.h"
 
 bool testABS(CPU &cpu) {
@@ -184,6 +184,13 @@ int main() {
 	printf("Absolute indirect adressing test: %d\n", abi);
 	printf("Absolute long addressing test: %d\n", abl);
 	printf("Immmediate addressing test: %d\n", imm);
+
+	DebugWindow debWind(cpu);
+
+	while (Window::Activ())
+	{
+
+	}
 
 	return 0;
 }

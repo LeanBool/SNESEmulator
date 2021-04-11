@@ -1,6 +1,7 @@
 #include "GrafikMain.h"
 #include <iostream>
 #include "FontInformation.h"
+#include <vector>
 
 
 Grafik::Graphix::~Graphix()
@@ -272,7 +273,8 @@ Grafik::IndexBuffer& Grafik::IndexBuffer::operator=(IndexBuffer&& moved)
 Grafik::Sampler::Sampler(const Graphix& gfx)
 {
     D3D11_SAMPLER_DESC sd = {};
-    sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    //sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    sd.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
     sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
     sd.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
     sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -477,8 +479,64 @@ void Grafik::TexturedRectangle::Draw(const Grafik::Graphix& gfx)
 
     gfx.GetContext()->DrawIndexed(6, 0, 0);
 }
+Grafik::String::String(const Graphix& gfx, const fvec4& color, const std::string& str,const fvec2& startpos, const float size)
+{
+    int curPosx = 0;
+    int curPosy = 0;
+    int offset = 0;
+    int ioffset = 0;
+    const fvec2 glyphwh = { (float)fontGlyphSize[0] / (float)fontImageSize[0], (float)fontGlyphSize[1] / (float)fontImageSize[1] };
+    const int chars_in_row = fontImageSize[0] / fontGlyphSize[0];
+    const int chars_in_col = fontImageSize[1] / fontGlyphSize[1];
+    std::vector<Vertex> vertices(str.size() * 4);
+    std::vector<UINT> indices(str.size() * 6);
+    for (auto& c : str)
+    {
+        if (c == ' ')
+        {
+            curPosx += 1;
+            continue;
+        }
+        if (c == '\n')
+        {
+            curPosx = 0;
+            curPosy += 1;
+            continue;
+        }
+        int relfont = c - ' ';
+        int xPos = relfont % chars_in_row;
+        int yPos = chars_in_col - 1 - relfont / chars_in_row;
+        float yzus = (float)fontGlyphSize[1] / (float)fontImageSize[1];
+        vertices.at(offset) = { {startpos.x + yzus * size * curPosx, startpos.y - size * curPosy}, {color.x, color.y, color.z, -color.w}, {glyphwh.x * (xPos),glyphwh.y * yPos} };
+        vertices.at(offset + 1) = { {startpos.x + yzus * size * (curPosx + 1), startpos.y - size * curPosy}, {color.x, color.y, color.z, -color.w}, {glyphwh.x * (xPos + 1),glyphwh.y * yPos} };
+        vertices.at(offset + 2) = { {startpos.x + yzus * size * curPosx, startpos.y + size * (-curPosy + 1)}, {color.x, color.y, color.z, -color.w} , {glyphwh.x * (xPos),glyphwh.y * (yPos + 1)} };
+        vertices.at(offset + 3) = { {startpos.x + yzus * size * (curPosx + 1), startpos.y + size * (-curPosy + 1)}, {color.x, color.y, color.z, -color.w} , {glyphwh.x * (xPos + 1),glyphwh.y * (yPos + 1)} };
+        indices.at(ioffset) = offset;
+        indices.at(ioffset + 1) = offset + 2;
+        indices.at(ioffset + 2) = offset + 3;
+        indices.at(ioffset + 3) = offset + 3;
+        indices.at(ioffset + 4) = offset + 1;
+        indices.at(ioffset + 5) = offset;
+        offset += 4;
+        ioffset += 6;
+        curPosx++;
+    }
+    vertices.shrink_to_fit();
+    indices.shrink_to_fit();
+    vertBuf = std::move(VertexBuffer(gfx,vertices.size(), vertices.data()));
+    indBuf = std::move(IndexBuffer(gfx,indices.size(), indices.data()));
+    numInds = indices.size();
+}
+void Grafik::String::Draw(const Graphix& gfx)
+{
+    vertBuf.Bind(gfx);
+    indBuf.Bind(gfx);
+    Grafik::fontTexture.Bind(gfx);
+    gfx.GetContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    gfx.GetContext()->DrawIndexed(numInds, 0, 0);
+}
 
-
+Grafik::Texture Grafik::fontTexture;
 
 
 std::atomic<int> Window::WinRefCounter;
@@ -509,6 +567,11 @@ LRESULT Window::HandleWindowMessage(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
     default:
         break;
     }
+    if (MSGCallbackFunktion && initialized)
+    {
+        MSGCallbackFunktion(hWnd, msg, wParam, lParam);
+    }
+
     return DefWindowProc(hWnd, msg, wParam, lParam);
 }
 void Window::mainthread(Window* wnd)
@@ -552,11 +615,10 @@ void Window::mainthread(Window* wnd)
     Grafik::BothShader standardShader(wnd->gfx);
     Grafik::Blender blender(wnd->gfx, true);
     Grafik::Sampler sampler(wnd->gfx);
-    Grafik::Texture fontTexture(wnd->gfx, font);
-
+    Grafik::fontTexture = std::move(Grafik::Texture(wnd->gfx, font));
 
     ShowWindow(wnd->hWnd, SW_SHOWDEFAULT);
-
+    
     while (IsWindowEnabled(wnd->hWnd))
     {
         MSG message = {};
@@ -572,10 +634,11 @@ void Window::mainthread(Window* wnd)
         sampler.Bind(wnd->gfx);
         standardShader.Bind(wnd->gfx);
         blender.Bind(wnd->gfx);
-        fontTexture.Bind(wnd->gfx);
-
-        wnd->callbackFunktion(wnd->gfx);
-
+        Grafik::fontTexture.Bind(wnd->gfx);
+        if (wnd->initialized)
+        {
+            wnd->callbackFunktion(wnd->gfx);
+        }
         wnd->gfx.EndDrawing();
     }
     WinRefCounter--;
@@ -592,10 +655,12 @@ bool Window::Activ()
     }
 }
 
-Window::Window(const std::wstring& WindowName, void(_fastcall* DrawFunktion)(Grafik::Graphix& gfx)) : Name(WindowName)
+Window::Window(const std::wstring& WindowName, void(_fastcall* DrawFunktion)(Grafik::Graphix& gfx), void(_fastcall* MSGCallbackFunktion)(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)) : Name(WindowName)
 {
     WinRefCounter++;
+    initialized = false;
     this->callbackFunktion = DrawFunktion;
+    this->MSGCallbackFunktion = MSGCallbackFunktion;
     drawThreadHandle = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)mainthread, this, 0, 0);
 }
 

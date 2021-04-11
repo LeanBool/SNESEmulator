@@ -148,12 +148,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="CPU.h" />
+    <ClInclude Include="Debugging\Debugger.h" />
     <ClInclude Include="GlobalStructs.h" />
     <ClInclude Include="Grafik\FontInformation.h" />
     <ClInclude Include="Grafik\GrafikMain.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CPU.cpp" />
+    <ClCompile Include="Debugging\Debugger.cpp" />
     <ClCompile Include="Grafik\GrafikMain.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
