@@ -1586,31 +1586,170 @@ uint8_t CPU::REP()
 
 uint8_t CPU::ROL()
 {
-    return uint8_t();
+    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
+    if (emulation_mode || GetFlag(M))
+    {
+        if (lookup[opcode].address_mode == &CPU::ACC)
+        {
+            uint8_t highBit = A & 0x80;
+            A = (((A << 1) | GetFlag(C)) & 0xFF);
+            SetFlag(C, highBit);
+            SetFlag(N, (A & 0x80));
+            SetFlag(Z, ((A & 0xFF) == 0));
+        }
+        else
+        {
+            fetch();
+            uint8_t highBit = fetched & 0x80;
+            fetched = (((fetched << 1) | GetFlag(C)) & 0xFF);
+
+            write(address_absolute, (fetched & 0xFF));
+            SetFlag(C, highBit);
+            SetFlag(N, (fetched & 0x80));
+            SetFlag(Z, ((fetched & 0xFF) == 0));
+        }
+    }
+    else
+    {
+        if (lookup[opcode].address_mode == &CPU::ACC)
+        {
+            uint8_t highBit = A & 0x8000;
+            A = ((A << 1) | GetFlag(C));
+            SetFlag(C, highBit);
+            SetFlag(N, (A & 0x8000));
+            SetFlag(Z, (A == 0));
+        }
+        else
+        {
+            fetch();
+            uint8_t highBit = fetched & 0x8000;
+            fetched = ((fetched << 1) | GetFlag(C));
+
+            write(address_absolute + 1, ((fetched & 0xFF00) >> 8));
+            write(address_absolute, (fetched & 0xFF));
+
+            SetFlag(C, highBit);
+            SetFlag(N, (fetched & 0x8000));
+            SetFlag(Z, (fetched == 0));
+        }
+    }
+
+    if (GetFlag(M))
+    {
+        zusatzCycle += 2;
+    }
+    return zusatzCycle;
 }
 
 uint8_t CPU::ROR()
 {
-    return uint8_t();
+    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
+    if (emulation_mode || GetFlag(M))
+    {
+        if (lookup[opcode].address_mode == &CPU::ACC)
+        {
+            uint8_t lowBit = A & 0x1;
+            A = (((A >> 1) | GetFlag(C)) & 0xFF);
+            SetFlag(C, lowBit);
+            SetFlag(N, (A & 0x80));
+            SetFlag(Z, ((A & 0xFF) == 0));
+        }
+        else
+        {
+            fetch();
+            uint8_t lowBit = fetched & 0x1;
+            fetched = (((fetched >> 1) | GetFlag(C)) & 0xFF);
+
+            write(address_absolute, (fetched & 0xFF));
+            SetFlag(C, lowBit);
+            SetFlag(N, (fetched & 0x80));
+            SetFlag(Z, ((fetched & 0xFF) == 0));
+        }
+    }
+    else
+    {
+        if (lookup[opcode].address_mode == &CPU::ACC)
+        {
+            uint8_t lowBit = A & 0x1;
+            A = ((A >> 1) | GetFlag(C));
+            SetFlag(C, lowBit);
+            SetFlag(N, (A & 0x8000));
+            SetFlag(Z, (A == 0));
+        }
+        else
+        {
+            fetch();
+            uint8_t lowBit = fetched & 0x1;
+            fetched = ((fetched >> 1) | GetFlag(C));
+
+            write(address_absolute + 1, ((fetched & 0xFF00) >> 8));
+            write(address_absolute, (fetched & 0xFF));
+
+            SetFlag(C, lowBit);
+            SetFlag(N, (fetched & 0x8000));
+            SetFlag(Z, (fetched == 0));
+        }
+    }
+
+    if (GetFlag(M))
+    {
+        zusatzCycle += 2;
+    }
+    return zusatzCycle;
 }
 
 uint8_t CPU::RTI()
 {
-    return uint8_t();
+    SP++;
+    status = read(SP);
+    SP++;
+    uint8_t hi = read(SP);
+    SP++;
+    uint8_t lo = read(SP);
+    PC = (hi << 8) | lo;
+    if (!emulation_mode)
+    {
+        SP++;
+        PBR = read(SP);
+        return 1;
+    }
+    return 0;
 }
 
 uint8_t CPU::RTS()
 {
-    return uint8_t();
+    SP++;
+    uint8_t hi = read(SP);
+    SP++;
+    uint8_t lo = read(SP);
+
+    PC = (hi << 8) | lo;
+    return 0;
 }
 
 uint8_t CPU::RTL()
 {
-    return uint8_t();
+    SP++;
+    uint8_t hi = read(SP);
+    SP++;
+    uint8_t lo = read(SP);
+    SP++;
+    PBR = read(SP);
+
+    PC = (hi << 8) | lo;
+    return 0;
 }
 
-uint8_t CPU::SBC()
+uint8_t CPU::SBC() // TODO: Hier wirds Wild, wird später gemacht
 {
+    if (emulation_mode || GetFlag(M))
+    {
+
+    }
+    else
+    {
+
+    }
     return uint8_t();
 }
 
@@ -1634,117 +1773,354 @@ uint8_t CPU::SEI()
 
 uint8_t CPU::SEP()
 {
-    return uint8_t();
+    fetch();
+    if (emulation_mode)
+    {
+        status = (fetched & (0xFF & ~((1 << 5) | (1 << 6)))) | status;
+    }
+    else
+    {
+        status = (fetched & 0xFF) | status;
+    }
+    return 0;
 }
 
 uint8_t CPU::STA()
 {
-    return uint8_t();
+    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
+    if (emulation_mode || GetFlag(M))
+    {
+        write(address_absolute, (A & 0xFF));
+    }
+    else
+    {
+        write(address_absolute, (A & 0xFF));
+        write(address_absolute + 1, ((A & 0xFF00) >> 8));
+    }
+    if (GetFlag(M))
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
+    }
 }
 
 uint8_t CPU::STX()
 {
-    return uint8_t();
+    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
+    if (emulation_mode || GetFlag(INDEX))
+    {
+        write(address_absolute, (X & 0xFF));
+    }
+    else
+    {
+        write(address_absolute, (X & 0xFF));
+        write(address_absolute + 1, ((X & 0xFF00) >> 8));
+    }
+    if (GetFlag(INDEX))
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
+    }
 }
 
 uint8_t CPU::STY()
 {
-    return uint8_t();
+    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
+    if (emulation_mode || GetFlag(INDEX))
+    {
+        write(address_absolute, (Y & 0xFF));
+    }
+    else
+    {
+        write(address_absolute, (Y & 0xFF));
+        write(address_absolute + 1, ((Y & 0xFF00) >> 8));
+    }
+    if (GetFlag(INDEX))
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
+    }
 }
 
-uint8_t CPU::STP()
+uint8_t CPU::STP() // TODO: Erstmal übersprungen, es wird eine Reset routine benötigt
 {
     return uint8_t();
 }
 
 uint8_t CPU::STZ()
 {
-    return uint8_t();
+    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
+    address_absolute = 0;
+    if (!GetFlag(M))
+    {
+        zusatzCycle++;
+    }
+    return zusatzCycle;
 }
 
 uint8_t CPU::TAX()
 {
-    return uint8_t();
+    if (emulation_mode || (GetFlag(M) && GetFlag(INDEX)) || (GetFlag(M) && !GetFlag(INDEX)) || (!GetFlag(M) && GetFlag(INDEX)))
+    {
+        SetFlag(N, (A & 0x80));
+        SetFlag(Z, ((A & 0xFF) == 0));
+        X = (A & 0xFF);
+    }
+    else
+    {
+        SetFlag(N, (A & 0x8000));
+        SetFlag(Z, (A == 0));
+        X = A;
+    }
+    return 0;
 }
 
 uint8_t CPU::TAY()
 {
-    return uint8_t();
+    if (emulation_mode || (GetFlag(M) && GetFlag(INDEX)) || (GetFlag(M) && !GetFlag(INDEX)) || (!GetFlag(M) && GetFlag(INDEX)))
+    {
+        SetFlag(N, (A & 0x80));
+        SetFlag(Z, ((A & 0xFF) == 0));
+        Y = (A & 0xFF);
+    }
+    else
+    {
+        SetFlag(N, (A & 0x8000));
+        SetFlag(Z, (A == 0));
+        Y = A;
+    }
+    return 0;
 }
 
 uint8_t CPU::TCD()
 {
-    return uint8_t();
+    DP = A;
+    SetFlag(N, (A & 0x8000));
+    SetFlag(Z, (A == 0));
+    return 0;
 }
 
 uint8_t CPU::TCS()
 {
-    return uint8_t();
+    if (emulation_mode)
+    {
+        SP = (1 << 8) | A & 0xFF;
+    }
+    else
+    {
+        SP = A;
+    }
+    return 0;
 }
 
 uint8_t CPU::TDC()
 {
-    return uint8_t();
+    A = DP;
+    SetFlag(N, (A & 0x8000));
+    SetFlag(Z, (A == 0));
+    return 0;
 }
 
 uint8_t CPU::TSC()
 {
-    return uint8_t();
+    if (emulation_mode)
+    {
+        A = (1 << 8) | SP & 0xFF;
+    }
+    else
+    {
+        A = SP;
+    }
+    return 0;
 }
 
 uint8_t CPU::TSX()
 {
-    return uint8_t();
+    if (emulation_mode || GetFlag(INDEX))
+    {
+        X = SP & 0xFF;
+        SetFlag(N, (X & 0x80));
+        SetFlag(Z, ((X & 0xFF) == 0));
+    }
+    else
+    {
+        X = SP;
+        SetFlag(N, (X & 0x8000));
+        SetFlag(Z, (X == 0));
+    }
+    return 0;
 }
 
 uint8_t CPU::TXA()
 {
-    return uint8_t();
+    if (emulation_mode || (GetFlag(INDEX) && !GetFlag(M)))
+    {
+        A = X & 0xFF;
+        SetFlag(N, (A & 0x80));
+        SetFlag(Z, ((A & 0xFF) == 0));
+    }
+    else if (!GetFlag(INDEX) && GetFlag(M))
+    {
+        A = (A & 0xFF00) | (X & 0xFF);
+        SetFlag(N, (A & 0x80));
+        SetFlag(Z, ((A & 0xFF) == 0));
+    }
+    else
+    {
+        A = X;
+        SetFlag(N, (A & 0x8000));
+        SetFlag(Z, (A == 0));
+    }
+    return 0;
 }
 
 uint8_t CPU::TXS()
 {
-    return uint8_t();
+    if (emulation_mode)
+    {
+        SP = (1 << 8) | (X & 0xFF);
+
+    }
+    else if (GetFlag(INDEX))
+    {
+        SP = (X & 0xFF);
+    }
+    else
+    {
+        SP = X;
+    }
+    return 0;
 }
 
 uint8_t CPU::TXY()
 {
-    return uint8_t();
+    if (GetFlag(INDEX))
+    {
+        Y = (X & 0xFF);
+    }
+    else
+    {
+        Y = X;
+    }
+    return 0;
 }
 
 uint8_t CPU::TYA()
 {
-    return uint8_t();
+    if (emulation_mode || (GetFlag(INDEX) && !GetFlag(M)))
+    {
+        A = (Y & 0xFF);
+        SetFlag(N, (A & 0x80));
+        SetFlag(Z, ((A & 0xFF) == 0));
+    }
+    else if(!GetFlag(INDEX) && GetFlag(M))
+    {
+        A = (A & 0xFF00) | (X & 0xFF);
+        SetFlag(N, (A & 0x80));
+        SetFlag(Z, ((A & 0xFF) == 0));
+    }
+    else
+    {
+        A = Y;
+        SetFlag(N, (A & 0x8000));
+        SetFlag(Z, (A == 0));
+    }
+    return 0;
 }
 
 uint8_t CPU::TYX()
 {
-    return uint8_t();
+    if (GetFlag(INDEX))
+    {
+        X = (Y & 0xFF);
+        SetFlag(N, (X & 0x80));
+        SetFlag(Z, ((X & 0xFF) == 0));
+    }
+    else
+    {
+        X = Y;
+        SetFlag(N, (X & 0x8000));
+        SetFlag(Z, (X == 0));
+    }
+    return 0;
 }
 
 uint8_t CPU::TRB()
 {
-    return uint8_t();
+    uint8_t zustatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
+    fetch();
+    if (emulation_mode || GetFlag(M))
+    {
+        uint8_t res = ~(A & 0xFF) & (fetched & 0xFF);
+        write(address_absolute, res);
+        SetFlag(Z, (((A & 0xFF) & (fetched & 0xFF)) == 0));
+    }
+    else
+    {
+        uint16_t res = ~A & fetched;
+        write(address_absolute, (res & 0xFF));
+        write(address_absolute + 1, ((res & 0xFF00) >> 8));
+        SetFlag(Z, ((A & fetched) == 0));
+    }
+    if (!GetFlag(M))
+    {
+        zustatzCycle += 2;
+    }
+    return zustatzCycle;
 }
 
 uint8_t CPU::TSB()
 {
-    return uint8_t();
+    uint8_t zustatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
+    fetch();
+    if (emulation_mode || GetFlag(M))
+    {
+        uint8_t res = (A & 0xFF) | (fetched & 0xFF);
+        write(address_absolute, res);
+        SetFlag(Z, ((A & 0xFF) & (fetched & 0xFF) == 0));
+    }
+    else
+    {
+        uint16_t res = A | fetched;
+        write(address_absolute, (res & 0xFF));
+        write(address_absolute + 1, ((res & 0xFF00) >> 8));
+        SetFlag(Z, ((A & fetched) == 0));
+    }
+
+    if (!GetFlag(M))
+    {
+        zustatzCycle += 2;
+    }
+    return zustatzCycle;
 }
 
-uint8_t CPU::WAI()
+uint8_t CPU::WAI() // TODO: Irgendwas mit Interrupts, gerade kein bock drauf
 {
     return uint8_t();
 }
 
 uint8_t CPU::WDM()
 {
-    return uint8_t();
+    return 0;
 }
 
 uint8_t CPU::XBA()
 {
-    return uint8_t();
+    uint8_t hi = (A & 0xFF00) >> 8;
+    uint8_t lo = (A & 0xFF);
+    A = (lo << 8) | hi;
+    SetFlag(N, (A & 0x80));
+    SetFlag(Z, ((A & 0xFF) == 0));
+    return 0;
 }
 
 uint8_t CPU::XCE()
