@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "Debugging/Debugger.h"
 #include "CPU.h"
+#include <iostream>
 
 bool testABS(CPU &cpu) {
 	bool ret = false;
@@ -151,7 +152,6 @@ bool testIMM(CPU& cpu) {
 	for (int i = 0; i < inst.size(); i++) {
 		cpu.write(i, inst[i]);
 	}
-
 	do {
 		cpu.clock();
 	} while (cpu.opcode != 0xEA || cpu.cycles != 0);
@@ -164,28 +164,51 @@ bool testIMM(CPU& cpu) {
 	return ret;
 }
 
+void testProgramm(CPU& cpu)
+{
+	//0000        INX             E8
+	//0001        INX             E8
+	//0002        NOP             EA
+	//0003        CPX #$06        C9 06
+	//0005        BNE $00         D0 F9
+	std::vector<int> prog = { 0xE8, 0xE8, 0xEA, 0xE0, 0x06, 0xD0, 0xF9 };
+	for (int i = 0; i < prog.size(); i++)
+	{
+		cpu.write(i, prog.at(i));
+	}
+	static DebugWindow debWind(cpu);
+	while (cpu.PC < 8)
+	{
+		if (GetAsyncKeyState(VK_NUMPAD1) & 1)
+		{
+			cpu.clock();
+		}
+	}
+}
+
 int main() {
 	CPU cpu;
 
 	int16_t operand = 0;
 
-	bool abs = testABS(cpu);
-	bool abx = testABX(cpu);
-	bool aby = testABY(cpu);
-	bool aii = testAII(cpu);
-	bool abi = testABI(cpu);
-	bool abl = testABL(cpu);
-	bool imm = testIMM(cpu);
+	//bool abs = testABS(cpu);
+	//bool abx = testABX(cpu);
+	//bool aby = testABY(cpu);
+	//bool aii = testAII(cpu);
+	//bool abi = testABI(cpu);
+	//bool abl = testABL(cpu);
+	//bool imm = testIMM(cpu);
+	//
+	//printf("\nAbsolute addressing test: %d\n", abs);
+	//printf("Absolute X addressing test: %d\n", abx);
+	//printf("Absolute Y addressing test: %d\n", aby);
+	//printf("Absolute indexed indirect addressing test: %d\n", aii);
+	//printf("Absolute indirect adressing test: %d\n", abi);
+	//printf("Absolute long addressing test: %d\n", abl);
+	//printf("Immmediate addressing test: %d\n", imm);
 
-	printf("\nAbsolute addressing test: %d\n", abs);
-	printf("Absolute X addressing test: %d\n", abx);
-	printf("Absolute Y addressing test: %d\n", aby);
-	printf("Absolute indexed indirect addressing test: %d\n", aii);
-	printf("Absolute indirect adressing test: %d\n", abi);
-	printf("Absolute long addressing test: %d\n", abl);
-	printf("Immmediate addressing test: %d\n", imm);
-
-	DebugWindow debWind(cpu);
+	testProgramm(cpu);
+	//DebugWindow debWind(cpu);
 
 	while (Window::Activ())
 	{

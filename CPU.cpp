@@ -56,7 +56,6 @@ void CPU::clock()
 {
     if (cycles == 0) {
         opcode = read((PBR << 16) | PC);
-        PC++;
 
         cycles = lookup[opcode].cycles;
 
@@ -347,8 +346,18 @@ uint8_t CPU::DIRY()
 
 uint8_t CPU::IMM() // TODO: Unterschied in Emulation Mode vs Native Mode!!!
 {
-    address_absolute = PC;
-    PC += 2;
+    if (emulation_mode)
+    {
+        PC++;
+        address_absolute = PC;
+        PC++;
+    }
+    else
+    {
+        PC++;
+        address_absolute = PC;
+        PC += 2;
+    }
     return 0;
 }
 
@@ -360,11 +369,8 @@ uint8_t CPU::IMP()
 
 uint8_t CPU::REL()
 {
-    int16_t operand = (int8_t)read((PBR << 16) | PC);
     PC++;
-
-    operand += PC;
-    address_absolute = (PBR << 16) | operand;
+    address_absolute = (PBR << 16) | PC;
     return 0;
 }
 
@@ -589,10 +595,11 @@ uint8_t CPU::BNE()
     if (!GetFlag(Z))
     {
         zusatzCycle += 1;
-        int16_t val = (int8_t)fetch();
-        PC += val;
+
         if (emulation_mode)
         {
+            int16_t val = (int8_t)((fetch() & 0xFF)) + 1;
+            PC += val;
             if (address_absolute & 0xFFFF0000)
             {
                 zusatzCycle += 1;
@@ -600,6 +607,9 @@ uint8_t CPU::BNE()
         }
         else
         {
+            int16_t val = (int8_t)fetch() + 1;
+            PC++;
+            PC += val;
             if (address_absolute & 0xFF000000)
             {
                 zusatzCycle += 1;
@@ -811,16 +821,18 @@ uint8_t CPU::CMP()
 uint8_t CPU::CPX()
 {
     uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
-    fetch();
-    uint16_t res = fetched - X;
     if (emulation_mode)
     {
+        fetched = (fetch() & 0x00FF);
+        uint16_t res = fetched - X;
         SetFlag(C, (X & 0xFF) >= (fetched & 0xFF));
         SetFlag(Z, ((res & 0xFF) == 0));
         SetFlag(N, (res & 0x80));
     }
     else
     {
+        fetch();
+        uint16_t res = fetched - X;
         if (X == 0)
         {
             zusatzCycle += 1;
