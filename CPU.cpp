@@ -56,6 +56,7 @@ void CPU::clock()
 {
     if (cycles == 0) {
         opcode = read((PBR << 16) | PC);
+        PC++;
 
         cycles = lookup[opcode].cycles;
 
@@ -132,10 +133,17 @@ uint8_t CPU::ABX()
     PC++;
 
     uint32_t tmp = (DBR << 16) | (hi << 8) | lo;
-    tmp += X;
+    if (emulation_mode || GetFlag(INDEX))
+    {
+        tmp += (X & 0xFF);
+    }
+    else
+    {
+        tmp += X;
+    }
     address_absolute = tmp;
 
-    if ((hi << 8) != (tmp & 0xFF00)) {
+    if ((hi << 8) != (tmp & 0xFF00) || !GetFlag(INDEX)) {
         return 1;
     }    
 
@@ -150,10 +158,18 @@ uint8_t CPU::ABY()
     PC++;
 
     uint32_t tmp = (DBR << 16) | (hi << 8) | lo;
-    tmp += Y;
+    if(emulation_mode || GetFlag(INDEX))
+    {
+        tmp += (Y & 0xFF);
+        
+    }
+    else
+    {
+        tmp += Y;
+    }
     address_absolute = tmp;
 
-    if ((hi << 8) != (tmp & 0xFF00)) {
+    if ((hi << 8) != (tmp & 0xFF00) || !GetFlag(INDEX)) {
         return 1;
     }
 
@@ -168,7 +184,12 @@ uint8_t CPU::AII()
     PC++;
 
     uint32_t tmp = (((hi << 8) | lo) + X) & 0xFFFF;
-    tmp |= (PBR << 16); // wirklich PBR?
+    if (emulation_mode || GetFlag(INDEX))
+    {
+        tmp = (((hi << 8) | lo) + (X & 0xFF)) & 0xFFFF;
+    }
+
+    tmp |= (PBR << 16);
 
     lo = read(tmp);
     hi = read(tmp + 1);
@@ -190,7 +211,6 @@ uint8_t CPU::ABI()
     hi = read(tmp + 1);
 
     address_absolute = (PBR << 16) | (hi << 8) | lo;
-
     return 0;
 }
 
@@ -218,23 +238,44 @@ uint8_t CPU::ABLX()
     PC++;
 
     address_absolute = (((bank << 16) | (hi << 8) | lo) + X) & 0xFFFFFF;
+    if (emulation_mode || GetFlag(INDEX))
+    {
+        address_absolute = (((bank << 16) | (hi << 8) | lo) + (X & 0xFF)) & 0xFFFFFF;
+    }
 
     return 0;
 }
 
 uint8_t CPU::ACC()
 {
-    address_absolute = A; //PC verschieben?
+    if (emulation_mode || GetFlag(M))
+    {
+        address_absolute = (A & 0xFF);
+    }
+    else
+    {
+        address_absolute = A;
+    }
     return 0;
 }
 
 uint8_t CPU::BLM()
 {
-    uint8_t lo = read((PBR << 16) | PC); 
+    uint8_t destBank = read((PBR << 16) | PC); 
     PC++;
-    uint8_t hi = read((PBR << 16) | PC);
+    uint8_t srcBank = read((PBR << 16) | PC);
     PC++;
-    address_absolute = ((DBR << 16) | (hi << 8) | lo) & 0xFFFFFF;
+    if (GetFlag(INDEX))
+    {
+        address_absolute = ((srcBank << 16) | (X & 0xFF)) & 0xFFFFFF;
+        destination_address_absolute = ((destBank << 16) | (Y & 0xFF)) & 0xFFFFFF;
+    }
+    else
+    {
+        address_absolute = ((srcBank << 16) | X) & 0xFFFFFF;
+        destination_address_absolute = ((destBank << 16) | Y) & 0xFFFFFF;
+        return 1;
+    }
     return 0;
 }
 
@@ -244,7 +285,14 @@ uint8_t CPU::DIR()
     PC++;
     operand += DP;
     address_absolute = operand;
-    return 0;
+    if ((DP & 0xFF) == 0)
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
+    }
 }
 
 uint8_t CPU::DIN()
@@ -257,11 +305,19 @@ uint8_t CPU::DIN()
     uint16_t hi = read(operand + 1);
 
     address_absolute = (DBR << 16) | (hi << 8) | lo;
-    return 0;
+    if ((DP & 0xFF) == 0)
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
+    }
 }
 
 uint8_t CPU::DIX()
 {
+    uint8_t zusatzCycle = 0;
     uint16_t operand = read((PBR << 16) | PC);
     PC++;
     operand += DP;
@@ -270,10 +326,25 @@ uint8_t CPU::DIX()
     uint16_t hi = read(operand + 1);
 
     uint32_t tmp = (DBR << 16) | (hi << 8) | lo;
-    tmp += Y;
+    if(emulation_mode || GetFlag(INDEX))
+    {
+        tmp += (Y & 0xFF);
+    }
+    else
+    {
+        tmp += Y;
+    }
     address_absolute = tmp & 0xFFFFFF;
 
-    return 0;
+    if (((hi << 8) != (tmp & 0xff00)) || GetFlag(INDEX))
+    {
+        zusatzCycle++;
+    }
+    if ((DP & 0xFF) != 0)
+    {
+        zusatzCycle++;
+    }
+    return zusatzCycle;
 }
 
 uint8_t CPU::DIXL()
@@ -287,10 +358,23 @@ uint8_t CPU::DIXL()
     uint16_t bank = read(operand + 2);
 
     uint32_t tmp = (bank << 16) | (hi << 8) | lo;
-    tmp += Y;
+    if (emulation_mode || GetFlag(INDEX))
+    {
+        tmp += (Y & 0xFF);
+    }
+    else
+    {
+        tmp += Y;
+    }
     address_absolute = tmp & 0xFFFFFF;
-
-    return 0;
+    if ((DP & 0xFF) == 0)
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
+    }
 }
 
 uint8_t CPU::DIL()
@@ -304,73 +388,125 @@ uint8_t CPU::DIL()
     uint16_t bank = read(operand + 2);
 
     address_absolute = (bank << 16) | (hi << 8) | lo;
-
-    return 0;
+    if ((DP & 0xFF) == 0)
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
+    }
 }
 
 uint8_t CPU::DXI()
 {
     uint16_t operand = read((PBR << 16) | PC);
     PC++;
-    operand += DP + X;
+    if (emulation_mode || GetFlag(INDEX))
+    {
+        operand += DP + (X & 0xFF);
+    }
+    else
+    {
+        operand += DP + X;
+    }
 
     uint16_t lo = read(operand);
     uint16_t hi = read(operand + 1);
 
     address_absolute = (DBR << 16) | (hi << 8) | lo;
-
-    return 0;
+    if ((DP & 0xFF) == 0)
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
+    }
 }
 
 uint8_t CPU::DIRX()
 {
     uint16_t operand = read((PBR << 16) | PC);
     PC++;
-    operand += DP + X;
+    if (emulation_mode || GetFlag(INDEX))
+    {
+        operand += DP + (X & 0xFF);
+    }
+    else
+    {
+        operand += DP + X;
+    }
 
     address_absolute = operand & 0xFFFFFF;
-
-    return 0;
+    if ((DP & 0xFF) == 0)
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
+    }
 }
 
 uint8_t CPU::DIRY()
 {
     uint16_t operand = read((PBR << 16) | PC);
     PC++;
-    operand += DP + Y;
+    if (emulation_mode || GetFlag(INDEX))
+    {
+        operand += DP + (Y & 0xFF);
+    }
+    else
+    {
+        operand += DP + Y;
+    }
 
     address_absolute = operand & 0xFFFFFF;
-
-    return 0;
+    if ((DP & 0xFF) == 0)
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
+    }
 }
 
-uint8_t CPU::IMM() // TODO: Unterschied in Emulation Mode vs Native Mode!!!
+uint8_t CPU::IMM()
 {
-    if (emulation_mode)
+    if (emulation_mode || (GetFlag(INDEX) && GetFlag(M)))
     {
-        PC++;
         address_absolute = PC;
         PC++;
     }
     else
     {
-        PC++;
         address_absolute = PC;
-        PC += 2;
+        PC++;
+        if (!GetFlag(M))
+        {
+            PC++;
+        }
     }
     return 0;
 }
 
 uint8_t CPU::IMP()
 {
-    PC++;
     return 0;
 }
 
 uint8_t CPU::REL()
 {
+    int16_t val = (int8_t)read(PC);
     PC++;
-    address_absolute = (PBR << 16) | PC;
+    uint16_t relPC = PC + val;
+    address_absolute = ((PBR << 16) | relPC) & 0xFFFFFF;
+    if (emulation_mode && (PC & 0xFF00) != (relPC & 0xFF00))
+    {
+        return 1;
+    }
     return 0;
 }
 
@@ -381,7 +517,7 @@ uint8_t CPU::RELL()
     uint16_t hi = read((PBR << 16) | PC);
     PC++;
 
-    uint16_t tmp = (int16_t)((hi << 8) | lo) + PC;
+    uint16_t tmp = ((int16_t)((hi << 8) | lo)) + PC;
     address_absolute = (PBR << 16) | tmp;
 
     return 0;
@@ -389,26 +525,27 @@ uint8_t CPU::RELL()
 
 uint8_t CPU::STK()
 {
-    PC++;
     address_absolute = SP; //Hier aufpassen, eigentlich sollte das nix machen, da die einzelnen instr. Die Arbeit machen, aber sonst wäre der address_abs undefined.
     return 0;
 }
 
 uint8_t CPU::SREL()
 {
-    int8_t operand = (int8_t)read((PBR << 16) | PC);
+    uint8_t operand = read((PBR << 16) | PC);
+    PC++;
     address_absolute = SP + operand;
-
     return 0;
 }
 
 uint8_t CPU::SRII()
 {
-    uint8_t operand = read((PBR << 16) | PC);
+    uint16_t operand = read((PBR << 16) | PC);
+    PC++;
+    operand += SP;
     uint8_t lo = read(operand);
     uint8_t hi = read(operand + 1);
-    uint16_t inaddr = (hi << 8) | lo;
-    if (emulation_mode)
+    uint16_t inaddr = (DBR << 16) | (hi << 8) | lo;
+    if (emulation_mode || GetFlag(INDEX))
     {
         address_absolute = (Y & 0xFF) + inaddr;
     }
@@ -591,32 +728,20 @@ uint8_t CPU::BMI()
 
 uint8_t CPU::BNE()
 {
-    uint8_t zusatzCycle = 0;
     if (!GetFlag(Z))
     {
-        zusatzCycle += 1;
 
         if (emulation_mode)
         {
-            int16_t val = (int8_t)((fetch() & 0xFF)) + 1;
-            PC += val;
-            if (address_absolute & 0xFFFF0000)
-            {
-                zusatzCycle += 1;
-            }
+            PC = address_absolute;
         }
         else
         {
-            int16_t val = (int8_t)fetch() + 1;
-            PC++;
-            PC += val;
-            if (address_absolute & 0xFF000000)
-            {
-                zusatzCycle += 1;
-            }
+            PC = address_absolute;
         }
+        return 1;
     }
-    return zusatzCycle;
+    return 0;
 }
 
 uint8_t CPU::BPL()
@@ -820,7 +945,7 @@ uint8_t CPU::CMP()
 
 uint8_t CPU::CPX()
 {
-    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
+    uint8_t zusatzCycle = 0;
     if (emulation_mode)
     {
         fetched = (fetch() & 0x00FF);

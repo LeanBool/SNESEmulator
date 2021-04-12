@@ -9,6 +9,7 @@ struct DebugInstruction
 	std::string name;
 	ivec3 length;
 };
+
 //Die LookUpTable enthält die Informationen über die länger der Instruction: length.x = NORMAL; length.y = M(flag)==1; length.z = INDEX(flag)==1; Falls INDEX(flag) == 1 && M(flag) == 1 ==> length = max(length.y,length.z);
 static const DebugInstruction lookup[] =	{	{"BRK", {2,2,2}},{"ORA", {2,2,2}},{"COP", {2,2,2}},{"ORA", {2,2,2}},{"TSB", {2,2,2}},{"ORA", {2,2,2}},{"ASL", {2,2,2}},{"ORA", {2,2,2}},{"PHP", {1,1,1}},{"ORA", {2,3,2}},{"ASL", {1,1,1}},{"PHD", {1,1,1}},{"TSB", {3,3,3}},{"ORA", {3,3,3}},{"ASL", {3,3,3}},{"ORA", {4,4,4}},
 												{"BPL", {2,2,2}},{"ORA", {2,2,2}},{"ORA", {2,2,2}},{"ORA", {2,2,2}},{"TRB", {2,2,2}},{"ORA", {2,2,2}},{"ASL", {2,2,2}},{"ORA", {2,2,2}},{"CLC", {1,1,1}},{"ORA", {3,3,3}},{"INC", {1,1,1}},{"TCS", {1,1,1}},{"TRB", {3,3,3}},{"ORA", {3,3,3}},{"ASL", {3,3,3}},{"ORA", {4,4,4}},
@@ -186,14 +187,13 @@ class DebugZeile
 {
 public:
 	DebugZeile() = default;
-	DebugZeile(const std::string& stri, int ID)
+	DebugZeile(int ID)
 	{
 		this->ID = ID;
 		col = { 1.0f, 1.0f, 1.0f, 1.0f };
-		this->str = stri;
 		size = { 1.9f, 0.08f };
 		float numZeilen = 1.0f / usedFontSize;
-		DebugZeile::BetrachteteZeile = ID / 2 - numZeilen + 1;
+		DebugZeile::BetrachteteStartAddresse = ID / 2 - numZeilen + 1;
 	}
 	void isOverlapped(const fvec2& mousep)
 	{
@@ -214,98 +214,79 @@ public:
 			}
 		}
 	}
-	void OverrideZeile(WPARAM wParam)
-	{
-		static bool activ = false;
-		if (wParam == VK_RETURN)
-		{
-			activ = !activ;
-		}
-		if (activ)
-		{
-			for (int i = 0x41; i < 0x5A; i++)
-			{
-				if (wParam == i)
-				{
-					if (GetAsyncKeyState(VK_SHIFT))
-					{
-						str.push_back('A' + i - 0x41);
-					}
-					else
-					{
-						str.push_back('a' + i - 0x41);
-					}
-				}
-			}
-			for (int i = 0; i < 10; i++)
-			{
-				if (wParam == i + 0x30)
-				{
-					if(GetAsyncKeyState(VK_SHIFT))
-					{
-						if (i == 0)
-						{
-							str.push_back('=');
-						}
-						else
-						{
-							str.push_back('!' + i-1);
-						}
-					}
-					else
-					{
-						str.push_back('0' + i);
-					}
-				}
-			}
-			if (wParam == VK_BACK && str.size() > 0)
-			{
-				str.pop_back();
-			}
-			if (wParam == VK_SPACE)
-			{
-				str.push_back(' ');
-			}
-		}
-	}
 	
 	void Draw(Grafik::Graphix& gfx)
 	{
-		bottomleft = { -1.0f, 1.00f - 0.08f * (ID - BetrachteteZeile + 3) };
+		bottomleft = { -1.0f, 1.00f - 0.08f * (ID + 3) };
 		if (ID == SelectedZeile)
 		{
 			col = SelectedCol;
 		}
-		Grafik::Vertex vertices[4] = { {{bottomleft.x, bottomleft.y},col, {}},{{bottomleft.x + size.x, bottomleft.y},col,{}}, {{bottomleft.x, bottomleft.y + size.y},col,{}},{{bottomleft.x + size.x, bottomleft.y + size.y},col,{}} };
-		UINT inds[6] = { 0,2,3,3,1,0 };
-		Grafik::VertexBuffer vertBuf(gfx, 4, vertices);
-		Grafik::IndexBuffer indBuf(gfx, 6, inds);
-		vertBuf.Bind(gfx);
-		indBuf.Bind(gfx);
-		gfx.GetContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		gfx.GetContext()->DrawIndexed(6, 0, 0);
-		if (str.size() > 0)
-		{
-			Grafik::String stri(gfx, { 0.0f, 0.0f, 0.0f, 1.0f }, str, bottomleft, usedFontSize);
-			stri.Draw(gfx);
+		if ((BetrachteteStartAddresse + ID) >= 0 && (BetrachteteStartAddresse + ID) < dieses->Cpu.memory.at(0).size())
+		{				
+			int addr = BetrachteteStartAddresse;
+			if (addr < 0)
+			{
+				addr = 0;
+			}
+			
+			for (int i = 0; i < ID; i++)
+			{
+				if (addr < dieses->Cpu.memory.at(0).size())
+				{
+					addr += lookup[dieses->Cpu.memory.at(0).at(addr)].length.x;
+				}
+				
+			}
+			if (addr < dieses->Cpu.memory.at(0).size())
+			{
+				if (dieses->Cpu.PC >= addr && dieses->Cpu.PC < addr + 1)
+				{
+					col = PCColor;
+				}
+				Grafik::Vertex vertices[4] = { {{bottomleft.x, bottomleft.y},col, {}},{{bottomleft.x + size.x, bottomleft.y},col,{}}, {{bottomleft.x, bottomleft.y + size.y},col,{}},{{bottomleft.x + size.x, bottomleft.y + size.y},col,{}} };
+				UINT inds[6] = { 0,2,3,3,1,0 };
+				Grafik::VertexBuffer vertBuf(gfx, 4, vertices);
+				Grafik::IndexBuffer indBuf(gfx, 6, inds);
+				vertBuf.Bind(gfx);
+				indBuf.Bind(gfx);
+				gfx.GetContext()->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+				gfx.GetContext()->DrawIndexed(6, 0, 0);
+
+
+				std::string str = std::to_string(addr) + ":  " + lookup[dieses->Cpu.memory.at(0).at(addr)].name + "  ";
+				for (int i = 1; i < lookup[dieses->Cpu.memory.at(0).at(addr)].length.x; i++)
+				{
+					if ((addr + i) < dieses->Cpu.memory.at(0).size())
+					{
+						str += std::to_string(dieses->Cpu.memory.at(0).at(addr + i)) + " ";
+					}
+				}
+				if (addr < dieses->Cpu.memory.at(0).size())
+				{
+					Grafik::String stri(gfx, { 0.0f, 0.0f, 0.0f, 1.0f }, str, bottomleft, usedFontSize);
+					stri.Draw(gfx);
+				}
+			}
 		}
 	}
 
 	static int NumVisibleZeilen;
-	static int BetrachteteZeile;
+	static int BetrachteteStartAddresse;
 	static int SelectedZeile;
 private:
 	int ID;
 	fvec4 col;
 	fvec2 bottomleft;
 	fvec2 size;
-	std::string str;
 	static constexpr fvec4 SelectedCol = { 0.25f, 0.25f, 0.4136f, 1.0f };
+	static constexpr fvec4 PCColor = { 0.5f, 0.5f, 0.0f, 1.0f };
 };
 int DebugZeile::NumVisibleZeilen = 2.0f/usedFontSize + 1;
-int DebugZeile::BetrachteteZeile = 0;
+int DebugZeile::BetrachteteStartAddresse = 0;
 int DebugZeile::SelectedZeile = 0;
 static std::vector<DebugZeile> zeilen;
+
 
 
 class ScrollBar
@@ -326,12 +307,12 @@ public:
 	void SetScrollBarPosFromZeile()
 	{
 		float numZeilen = 1.0f / usedFontSize;
-		y_aktuell = 1.0f - 2.0f/(float)zeilen.size() * (DebugZeile::BetrachteteZeile + numZeilen/2 + 1);
+		y_aktuell = 1.0f - 2.0f/(float)dieses->Cpu.memory.at(0).size() * (DebugZeile::BetrachteteStartAddresse + numZeilen/2 + 1);
 	}
 	void SetZeileFromScrollBarPos()
 	{
 		float numZeilen = 1.0f / usedFontSize;
-		DebugZeile::BetrachteteZeile = (1.0f - y_aktuell) * (float)zeilen.size() / 2.0f - numZeilen/2;
+		DebugZeile::BetrachteteStartAddresse = (1.0f - y_aktuell) * (float)dieses->Cpu.memory.at(0).size() / 2.0f - numZeilen/2;
 	}
 	void SetScrollBarPosMouse(const fvec2& mousep)
 	{
@@ -351,7 +332,7 @@ public:
 	void Draw(Grafik::Graphix& gfx)
 	{
 		float numZeilen = 2.0f / usedFontSize;
-		y_size = numZeilen / (float)zeilen.size();
+		y_size = numZeilen / (float)dieses->Cpu.memory.at(0).size();
 		if (y_size > 2.0f)
 		{
 			y_size = 2.0f;
@@ -395,10 +376,7 @@ void _fastcall DebugWindow::DrawFunktion(Grafik::Graphix& gfx)
 	static DebugRegisters registers(dieses->Cpu);
 	for (int i = 0; i < DebugZeile::NumVisibleZeilen; i++)
 	{	
-		if (DebugZeile::BetrachteteZeile + i < zeilen.size())
-		{
-			zeilen.at(DebugZeile::BetrachteteZeile + i).Draw(gfx);
-		}
+		zeilen.at(i).Draw(gfx);
 	}
 	registers.Draw(gfx);
 	bar.Draw(gfx);
@@ -415,10 +393,7 @@ void _fastcall  DebugWindow::msgFunk(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
 	for (int i = 0; i < DebugZeile::NumVisibleZeilen; i++)
 	{
-		if (DebugZeile::BetrachteteZeile + i < zeilen.size())
-		{
-			zeilen.at(DebugZeile::BetrachteteZeile + i).isOverlapped(mousePos);
-		}
+		zeilen.at(i).isOverlapped(mousePos);
 	}
 	bar.SetScrollBarPosMouse(mousePos);
 	switch (msg)
@@ -426,11 +401,11 @@ void _fastcall  DebugWindow::msgFunk(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 	case WM_MOUSEWHEEL:
 		if (GET_WHEEL_DELTA_WPARAM(wParam) > 0)
 		{
-			DebugZeile::BetrachteteZeile--;
+			DebugZeile::BetrachteteStartAddresse--;
 		}
 		else
 		{
-			DebugZeile::BetrachteteZeile++;
+			DebugZeile::BetrachteteStartAddresse++;
 		}
 		bar.SetScrollBarPosFromZeile();
 		break;
@@ -438,22 +413,10 @@ void _fastcall  DebugWindow::msgFunk(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 }
 void DebugWindow::Dissassemble()
 {
-	int ID = 0;
-	for (int i = 0; i < Cpu.memory.at(0).size(); i++)
+	for (int i = 0; i < DebugZeile::NumVisibleZeilen; i++)
 	{
-		std::string usedString = std::to_string(i) + ":  " + lookup[Cpu.memory.at(0).at(i)].name + "  ";
-		for (int k = 1; k < lookup[Cpu.memory.at(0).at(i)].length.x; k++)
-		{
-			if ((i + k) < Cpu.memory.at(0).size())
-			{
-				usedString += std::to_string(Cpu.memory.at(0).at(i + k)) + "  ";
-			}
-		}
-		zeilen.push_back(DebugZeile(usedString, ID));
-		i += lookup[Cpu.memory.at(0).at(i)].length.x - 1;
-		ID++;
+		zeilen.push_back(DebugZeile(i));
 	}
-	std::cout << zeilen.size() << std::endl;
 }
 DebugWindow::DebugWindow(const CPU& cpu) : wnd(L"Debugger", DebugWindow::DrawFunktion, DebugWindow::msgFunk), Cpu(cpu)
 {

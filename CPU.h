@@ -40,6 +40,7 @@ public:
 	uint16_t fetched = 0x0; // Data located at address_absolute (lo) and address_absolute+1 (hi)
 	uint32_t address_absolute = 0x0;
 	uint32_t address_relative = 0x0;
+	uint32_t destination_address_absolute = 0x0; // used in block Move, Source Effective Address is stored in address Absolute
 
 	//Addressing modes
 	uint8_t ABS(); // absolute
