@@ -559,7 +559,62 @@ uint8_t CPU::SRII()
 // opcodes
 uint8_t CPU::ADC()
 {
-    return uint8_t();
+    fetch();
+    if (GetFlag(D))
+    {
+
+    }
+    else
+    {
+        if (emulation_mode || GetFlag(M))
+        {
+            fetched = fetched & 0xFF;
+            uint8_t prevA = A;
+            A = (A + fetched + GetFlag(C)) & 0xFF;
+            SetFlag(N, A & 0x80);
+            if ((prevA & 0x80) && (fetched & 0x80))
+            {
+                SetFlag(V, !(A & 0x80));
+                SetFlag(C, 1);
+            }
+            else if (!(prevA & 0x80) && !(fetched & 0x80))
+            {
+                SetFlag(V, (A & 0x80));
+                SetFlag(C, 0);
+            }
+            else
+            {
+                SetFlag(V, 0);
+                SetFlag(C, 0);
+            }
+        }
+        else
+        {
+            uint16_t prevA = A;
+            A = (A + fetched + GetFlag(C));
+            SetFlag(N, A & 0x8000);
+            if ((prevA & 0x8000) && (fetched & 0x8000))
+            {
+                SetFlag(V, !(A & 0x8000));
+                SetFlag(C, 1);
+            }
+            else if (!(prevA & 0x8000) && !(fetched & 0x8000))
+            {
+                SetFlag(V, (A & 0x8000));
+                SetFlag(C, 0);
+            }
+            else
+            {
+                SetFlag(V, 0);
+                SetFlag(C, 0);
+            }
+        }
+    }
+    if (!GetFlag(M))
+    {
+        return 1;
+    }
+    return 0;
 }
 
 uint8_t CPU::AND()
@@ -1273,7 +1328,7 @@ uint8_t CPU::LSR()
     return 0;
 }
 
-uint8_t CPU::MVN() // TODO: ???? eigentlich so, aber irgendwie auch nicht in Block move wurde das so vorbereitet, aber in documentation steht die sachen sollten im X / Y register gespeichert sein
+uint8_t CPU::MVN()
 {
     uint8_t zusatzCycle = 0;
     if (emulation_mode || GetFlag(INDEX))
@@ -1281,7 +1336,7 @@ uint8_t CPU::MVN() // TODO: ???? eigentlich so, aber irgendwie auch nicht in Blo
         destination_address_absolute = destination_address_absolute & 0xFFFF;
         address_absolute = address_absolute & 0xFFFF;
     }
-    while (A >= 0)
+    while (A != 0xFFFF)
     {
         write(destination_address_absolute, read(address_absolute));
         destination_address_absolute++;
@@ -1300,7 +1355,7 @@ uint8_t CPU::MVP()
         destination_address_absolute = destination_address_absolute & 0xFFFF;
         address_absolute = address_absolute & 0xFFFF;
     }
-    while (A >= 0)
+    while (A != 0xFFFF)
     {
         write(destination_address_absolute, read(address_absolute));
         destination_address_absolute--;
@@ -1789,15 +1844,40 @@ uint8_t CPU::RTL()
 
 uint8_t CPU::SBC() // TODO: Hier wirds Wild, wird später gemacht
 {
-    if (emulation_mode || GetFlag(M))
+    if (GetFlag(D))
     {
 
     }
     else
     {
+        fetch();
+        if (emulation_mode || GetFlag(M))
+        {
+            fetched = fetched & 0xFF;
+            uint8_t prevA = A;
+            A = (A & 0xFF) - (fetched & 0xFF);
+            SetFlag(N, A & 0x80);
+            SetFlag(Z, (A & 0xFF) == 0);
+            if ((prevA & 0x80) && (fetched & 0x80))
+            {
+                SetFlag(V, !(A & 0x80));
+            }
+            else if (!(prevA & 0x80) && !(fetched & 0x80))
+            {
+                SetFlag(V, (A & 0x80));
+            }
+            else
+            {
+                SetFlag(V, 0);
+            }
+        }
+        else
+        {
 
+        }
+        
     }
-    return uint8_t();
+    return 0;
 }
 
 uint8_t CPU::SEC()
