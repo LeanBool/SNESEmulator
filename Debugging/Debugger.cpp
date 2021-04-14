@@ -4,12 +4,25 @@
 #include "../CPU.h"
 #include "../Grafik/FontInformation.h"
 
+
+std::string CreateHexString(int feinheit, uint32_t Mem)
+{
+	std::string str;
+	static constexpr char hexdingens[16] = { '0', '1','2','3','4','5','6','7','8','9','A','B','C','D','E','F' };
+	for (int i = 0; i < feinheit; i++)
+	{
+		int res = ((Mem & (0xF << 4 * (feinheit - i - 1))) >> 4 * (feinheit - i - 1));
+		str += hexdingens[res];
+	}
+	return str;
+}
+
 struct DebugInstruction
 {
 	std::string name;
 	ivec3 length;
 };
-
+static int currentBank = 0;
 //Die LookUpTable enthält die Informationen über die länger der Instruction: length.x = NORMAL; length.y = M(flag)==1; length.z = INDEX(flag)==1; Falls INDEX(flag) == 1 && M(flag) == 1 ==> length = max(length.y,length.z);
 static const DebugInstruction lookup[] =	{	{"BRK", {2,2,2}},{"ORA", {2,2,2}},{"COP", {2,2,2}},{"ORA", {2,2,2}},{"TSB", {2,2,2}},{"ORA", {2,2,2}},{"ASL", {2,2,2}},{"ORA", {2,2,2}},{"PHP", {1,1,1}},{"ORA", {2,3,2}},{"ASL", {1,1,1}},{"PHD", {1,1,1}},{"TSB", {3,3,3}},{"ORA", {3,3,3}},{"ASL", {3,3,3}},{"ORA", {4,4,4}},
 												{"BPL", {2,2,2}},{"ORA", {2,2,2}},{"ORA", {2,2,2}},{"ORA", {2,2,2}},{"TRB", {2,2,2}},{"ORA", {2,2,2}},{"ASL", {2,2,2}},{"ORA", {2,2,2}},{"CLC", {1,1,1}},{"ORA", {3,3,3}},{"INC", {1,1,1}},{"TCS", {1,1,1}},{"TRB", {3,3,3}},{"ORA", {3,3,3}},{"ASL", {3,3,3}},{"ORA", {4,4,4}},
@@ -150,30 +163,30 @@ public:
 		}
 		temp.x += breiteZusatz * 6 * usedFontSize;
 
-		Grafik::String PCString(gfx, { 1.0f,1.0f,1.0f,1.0f }, "PC = " + std::to_string(Cpu.PC), temp,usedFontSize);
+		Grafik::String PCString(gfx, { 1.0f,1.0f,1.0f,1.0f }, "PC = 0x" + CreateHexString(4,Cpu.PC), temp,usedFontSize);
 		PCString.Draw(gfx);
 		temp.x += breiteZusatz * 14 * usedFontSize;
-		Grafik::String AString(gfx, { 1.0f,1.0f,1.0f,1.0f }, "A = " + std::to_string(Cpu.A), temp, usedFontSize);
+		Grafik::String AString(gfx, { 1.0f,1.0f,1.0f,1.0f }, "A = 0x" + CreateHexString(4,Cpu.A), temp, usedFontSize);
 		AString.Draw(gfx);
 		temp.x += breiteZusatz * 13 * usedFontSize;
-		Grafik::String XString(gfx, { 1.0f, 1.0f, 1.0f, 1.0f }, "X = " + std::to_string(Cpu.X), temp, usedFontSize);
+		Grafik::String XString(gfx, { 1.0f, 1.0f, 1.0f, 1.0f }, "X = 0x" + CreateHexString(4,Cpu.X), temp, usedFontSize);
 		XString.Draw(gfx);
 		//Erste Zeile vorbei
 
 		temp = { bottomleftfirst.x, bottomleftfirst.y - usedFontSize };
-		Grafik::String YString(gfx, { 1.0f,1.0f,1.0f,1.0f }, "Y = " + std::to_string(Cpu.Y), temp, usedFontSize);
+		Grafik::String YString(gfx, { 1.0f,1.0f,1.0f,1.0f }, "Y = 0x" + CreateHexString(4,Cpu.Y), temp, usedFontSize);
 		YString.Draw(gfx);
 		temp.x += breiteZusatz * 13 * usedFontSize;
-		Grafik::String SPString(gfx, { 1.0f,1.0f,1.0f,1.0f }, "SP = " + std::to_string(Cpu.SP), temp, usedFontSize);
+		Grafik::String SPString(gfx, { 1.0f,1.0f,1.0f,1.0f }, "SP = 0x" + CreateHexString(4,Cpu.SP), temp, usedFontSize);
 		SPString.Draw(gfx);
 		temp.x += breiteZusatz * 14 * usedFontSize;
-		Grafik::String DPString(gfx, { 1.0f, 1.0f,1.0f,1.0f }, "DP = " + std::to_string(Cpu.DP), temp, usedFontSize);
+		Grafik::String DPString(gfx, { 1.0f, 1.0f,1.0f,1.0f }, "DP = 0x" + CreateHexString(4,Cpu.DP), temp, usedFontSize);
 		DPString.Draw(gfx);
 		temp.x += breiteZusatz * 14 * usedFontSize;
-		Grafik::String DBRString(gfx, { 1.0f, 1.0f,1.0f,1.0f }, "DBR = " + std::to_string(Cpu.DBR), temp, usedFontSize);
+		Grafik::String DBRString(gfx, { 1.0f, 1.0f,1.0f,1.0f }, "DBR = 0x" + CreateHexString(2,Cpu.DBR), temp, usedFontSize);
 		DBRString.Draw(gfx);
 		temp.x += breiteZusatz * 13 * usedFontSize;
-		Grafik::String PBRString(gfx, { 1.0f, 1.0f,1.0f,1.0f }, "PBR = " + std::to_string(Cpu.PBR), temp, usedFontSize);
+		Grafik::String PBRString(gfx, { 1.0f, 1.0f,1.0f,1.0f }, "PBR = 0x" + CreateHexString(2,Cpu.PBR), temp, usedFontSize);
 		PBRString.Draw(gfx);
 	}
 	const CPU& Cpu;
@@ -222,7 +235,7 @@ public:
 		{
 			col = SelectedCol;
 		}
-		if ((BetrachteteStartAddresse + ID) >= 0 && (BetrachteteStartAddresse + ID) < dieses->Cpu.memory.at(0).size())
+		if ((BetrachteteStartAddresse + ID) >= 0 && (BetrachteteStartAddresse + ID) < dieses->Cpu.memory.at(currentBank).size())
 		{				
 			int addr = BetrachteteStartAddresse;
 			if (addr < 0)
@@ -232,15 +245,15 @@ public:
 			
 			for (int i = 0; i < ID; i++)
 			{
-				if (addr < dieses->Cpu.memory.at(0).size())
+				if (addr < dieses->Cpu.memory.at(currentBank).size())
 				{
-					addr += lookup[dieses->Cpu.memory.at(0).at(addr)].length.x;
+					addr += lookup[dieses->Cpu.memory.at(currentBank).at(addr)].length.x;
 				}
 				
 			}
-			if (addr < dieses->Cpu.memory.at(0).size())
+			if (addr < dieses->Cpu.memory.at(currentBank).size())
 			{
-				if (dieses->Cpu.PC >= addr && dieses->Cpu.PC < addr + 1)
+				if (((dieses->Cpu.PBR << 16) | dieses->Cpu.PC) >= ((currentBank << 16) | addr) && ((dieses->Cpu.PBR << 16) | dieses->Cpu.PC) < ((currentBank << 16) | addr + 1))
 				{
 					col = PCColor;
 				}
@@ -254,15 +267,15 @@ public:
 				gfx.GetContext()->DrawIndexed(6, 0, 0);
 
 
-				std::string str = std::to_string(addr) + ":  " + lookup[dieses->Cpu.memory.at(0).at(addr)].name + "  ";
-				for (int i = 1; i < lookup[dieses->Cpu.memory.at(0).at(addr)].length.x; i++)
+				std::string str = CreateHexString(6, (currentBank << 16) | addr) + ":  " + lookup[dieses->Cpu.memory.at(currentBank).at(addr)].name + "  ";
+				for (int i = 1; i < lookup[dieses->Cpu.memory.at(currentBank).at(addr)].length.x; i++)
 				{
-					if ((addr + i) < dieses->Cpu.memory.at(0).size())
+					if ((addr + i) < dieses->Cpu.memory.at(currentBank).size())
 					{
-						str += std::to_string(dieses->Cpu.memory.at(0).at(addr + i)) + " ";
+						str += CreateHexString(2,dieses->Cpu.memory.at(currentBank).at(addr + i)) + " ";
 					}
 				}
-				if (addr < dieses->Cpu.memory.at(0).size())
+				if (addr < dieses->Cpu.memory.at(currentBank).size())
 				{
 					Grafik::String stri(gfx, { 0.0f, 0.0f, 0.0f, 1.0f }, str, bottomleft, usedFontSize);
 					stri.Draw(gfx);
@@ -312,7 +325,7 @@ public:
 	void SetZeileFromScrollBarPos()
 	{
 		float numZeilen = 1.0f / usedFontSize;
-		DebugZeile::BetrachteteStartAddresse = (1.0f - y_aktuell) * (float)dieses->Cpu.memory.at(0).size() / 2.0f - numZeilen/2;
+		DebugZeile::BetrachteteStartAddresse = (1.0f - y_aktuell) * (float)dieses->Cpu.memory.at(currentBank).size() / 2.0f - numZeilen/2;
 	}
 	void SetScrollBarPosMouse(const fvec2& mousep)
 	{
@@ -332,7 +345,7 @@ public:
 	void Draw(Grafik::Graphix& gfx)
 	{
 		float numZeilen = 2.0f / usedFontSize;
-		y_size = numZeilen / (float)dieses->Cpu.memory.at(0).size();
+		y_size = numZeilen / (float)dieses->Cpu.memory.at(currentBank).size();
 		if (y_size > 2.0f)
 		{
 			y_size = 2.0f;

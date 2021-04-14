@@ -737,9 +737,9 @@ uint8_t CPU::BRK()
     if (emulation_mode)
     {
         PC += 2;
-        write(SP, PC & 0xff);
+        write(0x100 | SP, PC & 0xff);
         SP--;
-        write(SP, PC & 0xFF00);
+        write(0x100 | SP, (PC & 0xFF00)>>8);
         SP--;
         SetFlag(INDEX, true);
         SetFlag(I, true);
