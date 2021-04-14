@@ -738,9 +738,9 @@ uint8_t CPU::BRK()
     {
         PC += 2;
         write(0x100 | SP, PC & 0xff);
-        SP--;
+        SP = (SP-1) & 0xFF;
         write(0x100 | SP, (PC & 0xFF00)>>8);
-        SP--;
+        SP = (SP-1) & 0xFF;
         SetFlag(INDEX, true);
         SetFlag(I, true);
         uint8_t lo = read(0xFFFE);
@@ -876,13 +876,13 @@ uint8_t CPU::CPY()
     uint16_t res = fetched - Y;
     if (emulation_mode || GetFlag(INDEX))
     {
-        SetFlag(C, (X & 0xFF) >= (fetched & 0xFF));
+        SetFlag(C, (Y & 0xFF) >= (fetched & 0xFF));
         SetFlag(Z, ((res & 0xFF) == 0));
         SetFlag(N, (res & 0x80));
     }
     else
     {
-        SetFlag(C, X >= fetched);
+        SetFlag(C, Y >= fetched);
         SetFlag(Z, res == 0);
         SetFlag(N, (res & 0x8000));
     }
@@ -899,11 +899,11 @@ uint8_t CPU::COP()
     {
         PC += 2;
         write(SP, PC & 0xff);
-        SP--;
+        SP = (SP - 1) & 0xFF;
         write(SP, PC & 0xFF00);
-        SP--;
+        SP = (SP - 1) & 0xFF;
         write(SP, status);
-        SP--;
+        SP = (SP - 1) & 0xFF;
         SetFlag(I, true);
         uint8_t lo = read(0xFFF4);
         uint8_t hi = read(0xFFF5);
@@ -918,7 +918,7 @@ uint8_t CPU::COP()
         PC += 2;
         write(SP, PC & 0xff);
         SP--;
-        write(SP, PC & 0xFF00);
+        write(SP, (PC & 0xFF00) >> 8);
         SP--;
         write(SP, status);
         SP--;
@@ -935,60 +935,52 @@ uint8_t CPU::COP()
 
 uint8_t CPU::DEC()
 {
-    uint8_t zusatzCycle = (DP & 0xFF) ? 0 : 1;
-    if (lookup[opcode].address_mode == &CPU::IMP)
+    if (lookup[opcode].address_mode == &CPU::ACC)
     {
         A--;
         if (emulation_mode)
         {
             SetFlag(N, (A & 0x80));
             SetFlag(Z, (A & 0xFF) == 0);
-            if (!(address_absolute & 0xFFFF0000))
-            {
-                zusatzCycle -= 1;
-            }
         }
         else
         {
             SetFlag(N, (A & 0x8000));
             SetFlag(Z, A == 0);
-            if (GetFlag(M))
-            {
-                zusatzCycle += 2;
-            }
         }
     }
     else
     {
         fetch();
         fetched--;
-        write(address_absolute, fetched  & 0xFF00);
-        address_absolute++;
-        write(address_absolute, fetched & 0xff);
-        
-        if (emulation_mode)
+        if (emulation_mode || GetFlag(M))
         {
+            write(address_absolute, fetched & 0xFF);
             SetFlag(N, (fetched & 0x80));
             SetFlag(Z, (fetched & 0xFF) == 0);
         }
         else
         {
+            write(address_absolute, fetched & 0xFF);
+            address_absolute++;
+            write(address_absolute, (fetched & 0xFF00) >> 8);
             SetFlag(N, (fetched & 0x8000));
             SetFlag(Z, fetched == 0);
-            if (GetFlag(M))
-            {
-                zusatzCycle += 2;
-            }
+        }
+        if (!GetFlag(M))
+        {
+            return 2;
         }
     }
-    return zusatzCycle;
+    return 0;
 }
 
 uint8_t CPU::DEX()
 {
     X--;
-    if (emulation_mode)
+    if (emulation_mode || GetFlag(INDEX))
     {
+        X = X & 0xFF;
         SetFlag(N, (X & 0x80));
         SetFlag(Z, (X & 0xFF) == 0);
     }
@@ -1003,8 +995,9 @@ uint8_t CPU::DEX()
 uint8_t CPU::DEY()
 {
     Y--;
-    if (emulation_mode)
+    if (emulation_mode || GetFlag(INDEX))
     {
+        Y = Y & 0xFF;
         SetFlag(N, (Y & 0x80));
         SetFlag(Z, (Y & 0xFF) == 0);
     }
@@ -1018,84 +1011,76 @@ uint8_t CPU::DEY()
 
 uint8_t CPU::EOR()
 {
-    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
+    uint8_t zusatzCycle = 0;
     fetch();
     A = A ^ fetched;
-    if (emulation_mode)
+    if (emulation_mode || GetFlag(M))
     {
-        if (address_absolute & 0xFFFF0000)
-        {
-            zusatzCycle += 1;
-        }
+        A = A & 0xFF;
+        SetFlag(N, A & 0x80);
+        SetFlag(Z, (A & 0xFF) == 0);
     }
     else
     {
-        if (address_absolute & 0xFF000000)
-        {
-            zusatzCycle += 1;
-        }
-        if (!GetFlag(M))
-        {
-            zusatzCycle += 1;
-        }
+        SetFlag(N, A & 0x8000);
+        SetFlag(Z, A == 0);
     }
-    return zusatzCycle;
+    if (!GetFlag(M))
+    {
+        return 1;
+    }
+    return 0;
 }
 
 uint8_t CPU::INC()
 {
-    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
-
-    if (lookup[opcode].address_mode == &CPU::IMP)
+    if (lookup[opcode].address_mode == &CPU::ACC)
     {
         A++;
-        if (emulation_mode)
+        if (emulation_mode || GetFlag(M))
         {
+            A = A & 0xFF;
             SetFlag(N, (A & 0x80));
             SetFlag(Z, (A & 0xFF) == 0);
-            if (!(address_absolute & 0xFFFF0000))
-            {
-                zusatzCycle -= 1;
-            }
-
         }
         else
         {
-            if (GetFlag(M))
-            {
-                zusatzCycle += 2;
-            }
             SetFlag(N, (A & 0x8000));
             SetFlag(Z, A == 0);
         }
     }
     else
     {
+        fetch();
         fetched++;
-        if (emulation_mode)
+        if (emulation_mode || GetFlag(M))
         {
+            fetched = fetched & 0xFF;
             SetFlag(N, (fetched & 0x80));
             SetFlag(Z, (fetched & 0xFF) == 0);
-
+            write(address_absolute, fetched & 0xFF);
         }
         else
         {
-            if (GetFlag(M))
-            {
-                zusatzCycle += 2;
-            }
             SetFlag(N, (fetched & 0x8000));
             SetFlag(Z, fetched == 0);
+            write(address_absolute, fetched & 0xFF);
+            write(address_absolute + 1, (fetched & 0xFF00) >> 8);
+        }
+        if (!GetFlag(M))
+        {
+            return 2;
         }
     }
-    return zusatzCycle;
+    return 0;
 }
 
 uint8_t CPU::INX()
 {
     X++;
-    if (emulation_mode)
+    if (emulation_mode || GetFlag(INDEX))
     {
+        X = X & 0xFF;
         SetFlag(N, (X & 0x80));
         SetFlag(Z, (X & 0xFF) == 0);
 
@@ -1111,8 +1096,9 @@ uint8_t CPU::INX()
 uint8_t CPU::INY()
 {
     Y++;
-    if (emulation_mode)
+    if (emulation_mode || GetFlag(INDEX))
     {
+        Y = Y & 0xFF;
         SetFlag(N, (Y & 0x80));
         SetFlag(Z, (Y & 0xFF) == 0);
 
@@ -1137,96 +1123,118 @@ uint8_t CPU::JML()
     return 0;
 }
 
-uint8_t CPU::JSR() //TODO: JSR und JSL kommt in der Documentation 2x vor
+uint8_t CPU::JSR()
 {
-    write(SP, PBR);
-    SP--;
-    write(SP, ((PC & 0xFF000) >> 8));
-    SP--;
-    write(SP, PC & 0xFF);
-    SP--;
-   
+    if (lookup[opcode].address_mode == &CPU::ABL)
+    {
+        write(SP, PBR);
+        SP--;
+        write(SP, ((PC & 0xFF000) >> 8));
+        SP--;
+        write(SP, PC & 0xFF);
+        SP--;
+
+        PC = address_absolute;
+    }
+    if (emulation_mode)
+    {
+        write(SP, ((PC & 0xFF000) >> 8));
+        SP = (SP-1) & 0xFF;
+        write(SP, PC & 0xFF);
+        SP = (SP - 1) & 0xFF;
+    }
+    else
+    {
+        write(SP, ((PC & 0xFF000) >> 8));
+        SP--;
+        write(SP, PC & 0xFF);
+        SP--;
+    }
     PC = address_absolute;
     return 0;
 }
 
-uint8_t CPU::JSL() //TODO: JSR und JSL kommt in der Documentation 2x vor
+uint8_t CPU::JSL()
 {
-    return uint8_t();
+    write(SP, PBR);
+    SP--;
+    write(SP, ((PC & 0xFF00) >> 8));
+    SP--;
+    write(SP, (PC & 0xFF));
+    SP--;
+    PBR = (address_absolute & 0xFF0000) >> 16;
+    PC = address_absolute;
+    return 0;
 }
 
 uint8_t CPU::LDA()
 {
     fetch();
-    A = fetched;
+    if (emulation_mode || GetFlag(M))
+    {
+        A = fetched & 0xFF;
+        SetFlag(N, (A & 0x80));
+        SetFlag(Z, (A & 0xFF) == 0);
+    }
+    else
+    {
+        A = fetched;
+        SetFlag(N, (A & 0x8000));
+        SetFlag(Z, A == 0);
+    }
+    if (!GetFlag(M))
+    {
+        return 1;
+    }
     return 0;
 }
 
 uint8_t CPU::LDX()
 {
-    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
     fetch();
-    if (emulation_mode)
+    if (emulation_mode || GetFlag(INDEX))
     {
-        if ((PC + fetched) & 0xFFFF0000)
-        {
-            zusatzCycle++;
-        }
         X = fetched & 0xFF;
         SetFlag(N, (X & 0x80));
         SetFlag(Z, ((X & 0xFF) == 0));
     }
     else
     {
-        if ((PC + fetched) & 0xFF000000)
-        {
-            zusatzCycle++;
-        }
-        if (X == 0)
-        {
-            zusatzCycle++;
-        }
         X = fetched;
         SetFlag(N, (X & 0x8000));
         SetFlag(Z, (X == 0));
     }
-    return zusatzCycle;
+    if (!GetFlag(INDEX))
+    {
+        return 1;
+    }
+    return 0;
 }
 
 uint8_t CPU::LDY()
 {
-    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
     fetch();
-    if (emulation_mode)
+    if (emulation_mode || GetFlag(INDEX))
     {
-        if ((PC + fetched) & 0xFFFF0000)
-        {
-            zusatzCycle++;
-        }
         Y = fetched & 0xFF;
         SetFlag(N, (Y & 0x80));
         SetFlag(Z, ((Y & 0xFF) == 0));
     }
     else
     {
-        if ((PC + fetched) & 0xFF000000)
-        {
-            zusatzCycle++;
-        }
-        if (X == 0)
-        {
-            zusatzCycle++;
-        }
         Y = fetched;
         SetFlag(N, (Y & 0x8000));
         SetFlag(Z, (Y == 0));
     }
-    return zusatzCycle;
+    if (!GetFlag(INDEX))
+    {
+        return 1;
+    }
+    return 0;
 }
 
 uint8_t CPU::LSR()
 {
-    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
     SetFlag(N, 0);
     if (lookup[opcode].address_mode == &CPU::ACC)
     {
@@ -1234,18 +1242,11 @@ uint8_t CPU::LSR()
         SetFlag(C, A & 0x1);
         if (emulation_mode)
         {
+            A = A & 0xFF;
             SetFlag(Z, (A & 0xFF) == 0);
-            if (!(PC & 0xFFFF0000))
-            {
-                zusatzCycle--;
-            }
         }
         else
         {
-            if (GetFlag(M))
-            {
-                zusatzCycle += 2;
-            }
             SetFlag(Z, A == 0);
         }
     }
@@ -1253,44 +1254,38 @@ uint8_t CPU::LSR()
     {
         fetch();
         fetched = fetched >> 1;
-        write(address_absolute, fetched);
+        write(address_absolute, fetched & 0xFF);
         SetFlag(C, fetched & 0x1);
-        if (emulation_mode)
+        if (emulation_mode || GetFlag(M))
         {
             SetFlag(Z, (fetched & 0xFF) == 0);
-            if (!(PC & 0xFFFF0000))
-            {
-                zusatzCycle--;
-            }
         }
         else
         {
-            if (GetFlag(M))
-            {
-                zusatzCycle += 2;
-            }
+            write(address_absolute + 1, (fetched & 0xFF00) >> 8);
             SetFlag(Z, fetched == 0);
+        }
+        if (!GetFlag(M))
+        {
+            return 2;
         }
     }
     return 0;
 }
 
-uint8_t CPU::MVN()
+uint8_t CPU::MVN() // TODO: ???? eigentlich so, aber irgendwie auch nicht in Block move wurde das so vorbereitet, aber in documentation steht die sachen sollten im X / Y register gespeichert sein
 {
     uint8_t zusatzCycle = 0;
-    fetch();
-    uint8_t destBank = (fetched & 0xFF00 >> 8);
-    uint8_t srcBank = (fetched & 0xFF);
     if (emulation_mode || GetFlag(INDEX))
     {
-        destBank = 0;
-        srcBank = 0;
+        destination_address_absolute = destination_address_absolute & 0xFFFF;
+        address_absolute = address_absolute & 0xFFFF;
     }
     while (A >= 0)
     {
-        write((destBank << 16) | Y, read((srcBank << 16) | X));
-        X++;
-        Y++;
+        write(destination_address_absolute, read(address_absolute));
+        destination_address_absolute++;
+        address_absolute++;
         A--;
         zusatzCycle += 7;
     }
@@ -1300,19 +1295,16 @@ uint8_t CPU::MVN()
 uint8_t CPU::MVP()
 {
     uint8_t zusatzCycle = 0;
-    fetch();
-    uint8_t destBank = (fetched & 0xFF00 >> 8);
-    uint8_t srcBank = (fetched & 0xFF);
     if (emulation_mode || GetFlag(INDEX))
     {
-        destBank = 0;
-        srcBank = 0;
+        destination_address_absolute = destination_address_absolute & 0xFFFF;
+        address_absolute = address_absolute & 0xFFFF;
     }
     while (A >= 0)
     {
-        write((destBank << 16) | Y, read((srcBank << 16) | X));
-        X--;
-        Y--;
+        write(destination_address_absolute, read(address_absolute));
+        destination_address_absolute--;
+        address_absolute--;
         A--;
         zusatzCycle += 7;
     }
@@ -1326,33 +1318,25 @@ uint8_t CPU::NOP()
 
 uint8_t CPU::ORA()
 {
-    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
-    if (GetFlag(M))
-    {
-        zusatzCycle++;
-    }
 
     fetch();
     A = A | fetched;
-    if (emulation_mode)
+    if (emulation_mode || GetFlag(M))
     {
+        A = A & 0xFF;
         SetFlag(N, (A & 0x80));
         SetFlag(Z, (A & 0xFF) == 0);
-        if (((PC + X)) & 0xFFFF0000)
-        {
-            zusatzCycle++;
-        }
     }
     else
     {
         SetFlag(N, (A & 0x8000));
         SetFlag(Z, A  == 0);
-        if (((PC + X)) & 0xFF000000)
-        {
-            zusatzCycle++;
-        }
     }
-    return zusatzCycle;
+    if (!GetFlag(M))
+    {
+        return 1;
+    }
+    return 0;
 }
 
 uint8_t CPU::PEA()
@@ -1372,8 +1356,6 @@ uint8_t CPU::PEI()
 {
     uint8_t lo = read((PBR << 16) | PC);// wie in STK angemerkt zieht sich die Inst. die daten selber
     PC++;
-
-    uint8_t zusatzCycle = (DP == 0) ? 0 : 1;
     uint16_t res = DP + lo;
 
     uint8_t high = read((DBR << 16) | (res + 1));
@@ -1384,12 +1366,17 @@ uint8_t CPU::PEI()
     write(SP, low);
     SP--;
 
-    return zusatzCycle;
+    return ((DP & 0xFF) == 0) ? 0 : 1;
 }
 
 uint8_t CPU::PER()
 {
-    int16_t signedFetch = (int16_t)fetch();
+
+    uint8_t lo = read((PBR << 16) | PC);// wie in STK angemerkt zieht sich die Inst. die daten selber
+    PC++;
+    uint8_t hi = read((PBR << 16) | PC);
+    PC++;
+    int16_t signedFetch = (int16_t)((hi << 8) | lo);
     uint16_t res = PC + signedFetch;
     write(SP, ((res & 0xFF00) >> 8));
     SP--;
@@ -1402,8 +1389,8 @@ uint8_t CPU::PHA()
 {
     if (emulation_mode | GetFlag(M))
     {
-        write(SP, (A & 0xFF));
-        SP--;
+        write(0x100 | (SP & 0xFF), (A & 0xFF));
+        SP = (SP-1) & 0xFF;
     }
     else
     {
@@ -1412,14 +1399,11 @@ uint8_t CPU::PHA()
         write(SP, (A & 0xFF));
         SP--;
     }
-    if (GetFlag(M))
-    {
-        return 0;
-    }
-    else
+    if (!GetFlag(M))
     {
         return 1;
     }
+    return 0;
 }
 
 uint8_t CPU::PHB()
@@ -1447,8 +1431,16 @@ uint8_t CPU::PHK()
 
 uint8_t CPU::PHP()
 {
-    write(SP, status);
-    SP--;
+    if (emulation_mode)
+    {
+        write(0x100 | (SP & 0xFF), status);
+        SP = (SP - 1) & 0xFF;
+    }
+    else
+    {
+        write(SP, status);
+        SP--;
+    }
     return 0;
 }
 
@@ -1456,8 +1448,8 @@ uint8_t CPU::PHX()
 {
     if (emulation_mode || GetFlag(INDEX))
     {
-        write(SP, (X & 0xFF));
-        SP--;
+        write(0x100 | (SP & 0xFF), (X & 0xFF));
+        SP = (SP - 1) & 0xFF;
     }
     else
     {
@@ -1466,22 +1458,19 @@ uint8_t CPU::PHX()
         write(SP, (X & 0xFF));
         SP--;
     }
-    if (GetFlag(INDEX))
-    {
-        return 0;
-    }
-    else
+    if (!GetFlag(INDEX))
     {
         return 1;
-    } 
+    }
+    return 0;
 }
 
 uint8_t CPU::PHY()
 {
     if (emulation_mode || GetFlag(INDEX))
     {
-        write(SP, (Y & 0xFF));
-        SP--;
+        write(0x100 | (SP & 0xFF), (Y & 0xFF));
+        SP = (SP - 1) & 0xFF;
     }
     else
     {
@@ -1490,14 +1479,11 @@ uint8_t CPU::PHY()
         write(SP, (Y & 0xFF));
         SP--;
     }
-    if (GetFlag(INDEX))
-    {
-        return 0;
-    }
-    else
+    if (!GetFlag(INDEX))
     {
         return 1;
     }
+    return 0;
 }
 
 uint8_t CPU::PLA()
@@ -1505,7 +1491,8 @@ uint8_t CPU::PLA()
     SP++;
     if (emulation_mode || GetFlag(M))
     {
-        A = read(SP);
+        SP = SP & 0xFF;
+        A = read(0x100 | SP);
         SetFlag(N, (A & 0x80));
         SetFlag(Z, ((A & 0xFF) == 0));
     }
@@ -1518,14 +1505,11 @@ uint8_t CPU::PLA()
         SetFlag(N, (A & 0x8000));
         SetFlag(Z, (A == 0));
     }
-    if(GetFlag(M))
-    {
-        return 0;
-    }
-    else
+    if(!GetFlag(M))
     {
         return 1;
     }
+    return 0;
 }
 
 uint8_t CPU::PLB()
@@ -1551,9 +1535,17 @@ uint8_t CPU::PLD()
 
 uint8_t CPU::PLP()
 {
-    SP++;
-    status = read(SP);
-    return uint8_t();
+    if (emulation_mode)
+    {
+        SP = (SP + 1) & 0xFF;
+        status = read(0x100 | SP);
+    }
+    else
+    {
+        SP++;
+        status = read(SP);
+    }
+    return 0;
 }
 
 uint8_t CPU::PLX()
@@ -1561,7 +1553,8 @@ uint8_t CPU::PLX()
     SP++;
     if (emulation_mode || GetFlag(INDEX))
     {
-        X = read(SP);
+        SP = SP & 0xFF;
+        X = read(0x100 | SP);
         SetFlag(N, (X & 0x80));
         SetFlag(Z, ((X & 0xFF) == 0));
     }
@@ -1575,14 +1568,11 @@ uint8_t CPU::PLX()
         SetFlag(Z, (X == 0));
     }
 
-    if (GetFlag(INDEX))
-    {
-        return 0;
-    }
-    else
+    if (!GetFlag(INDEX))
     {
         return 1;
     }
+    return 0;
 }
 
 uint8_t CPU::PLY()
@@ -1590,7 +1580,8 @@ uint8_t CPU::PLY()
     SP++;
     if (emulation_mode || GetFlag(INDEX))
     {
-        Y = read(SP);
+        SP = SP & 0xFF;
+        Y = read(0x100 | SP);
         SetFlag(N, (Y & 0x80));
         SetFlag(Z, ((Y & 0xFF) == 0));
     }
@@ -1604,14 +1595,11 @@ uint8_t CPU::PLY()
         SetFlag(Z, (Y == 0));
     }
 
-    if (GetFlag(INDEX))
-    {
-        return 0;
-    }
-    else
+    if (!GetFlag(INDEX))
     {
         return 1;
     }
+    return 0;
 }
 
 uint8_t CPU::REP()
@@ -1623,11 +1611,11 @@ uint8_t CPU::REP()
 
 uint8_t CPU::ROL()
 {
-    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
     if (emulation_mode || GetFlag(M))
     {
         if (lookup[opcode].address_mode == &CPU::ACC)
         {
+            A = A & 0xFF;
             uint8_t highBit = A & 0x80;
             A = (((A << 1) | GetFlag(C)) & 0xFF);
             SetFlag(C, highBit);
@@ -1636,7 +1624,7 @@ uint8_t CPU::ROL()
         }
         else
         {
-            fetch();
+            fetched = (fetch() & 0xFF);
             uint8_t highBit = fetched & 0x80;
             fetched = (((fetched << 1) | GetFlag(C)) & 0xFF);
 
@@ -1671,20 +1659,20 @@ uint8_t CPU::ROL()
         }
     }
 
-    if (GetFlag(M))
+    if (!GetFlag(M))
     {
-        zusatzCycle += 2;
+        return 2;
     }
-    return zusatzCycle;
+    return 0;
 }
 
 uint8_t CPU::ROR()
 {
-    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
     if (emulation_mode || GetFlag(M))
     {
         if (lookup[opcode].address_mode == &CPU::ACC)
         {
+            A = A & 0xFF;
             uint8_t lowBit = A & 0x1;
             A = (((A >> 1) | GetFlag(C)) & 0xFF);
             SetFlag(C, lowBit);
@@ -1693,7 +1681,7 @@ uint8_t CPU::ROR()
         }
         else
         {
-            fetch();
+            fetched = (fetch() & 0xFF);
             uint8_t lowBit = fetched & 0x1;
             fetched = (((fetched >> 1) | GetFlag(C)) & 0xFF);
 
@@ -1728,24 +1716,34 @@ uint8_t CPU::ROR()
         }
     }
 
-    if (GetFlag(M))
+    if (!GetFlag(M))
     {
-        zusatzCycle += 2;
+        return 2;
     }
-    return zusatzCycle;
+    return 0;
 }
 
 uint8_t CPU::RTI()
 {
-    SP++;
-    status = read(SP);
-    SP++;
-    uint8_t hi = read(SP);
-    SP++;
-    uint8_t lo = read(SP);
-    PC = (hi << 8) | lo;
-    if (!emulation_mode)
+    if(emulation_mode)
     {
+        SP = (SP + 1) & 0xFF;
+        status = read(SP);
+        SP = (SP + 1) & 0xFF;
+        uint8_t hi = read(0x100 | SP);
+        SP = (SP + 1) & 0xFF;
+        uint8_t lo = read(0x100 | SP);
+
+    }
+    else
+    {
+        SP++;
+        status = read(SP);
+        SP++;
+        uint8_t hi = read(SP);
+        SP++;
+        uint8_t lo = read(SP);
+        PC = (hi << 8) | lo;
         SP++;
         PBR = read(SP);
         return 1;
@@ -1755,12 +1753,24 @@ uint8_t CPU::RTI()
 
 uint8_t CPU::RTS()
 {
-    SP++;
-    uint8_t hi = read(SP);
-    SP++;
-    uint8_t lo = read(SP);
+    if (emulation_mode)
+    {
+        SP = (SP + 1) & 0xFF;
+        uint8_t hi = read(0x100 | SP);
+        SP = (SP + 1) & 0xFF;
+        uint8_t lo = read(0x100 | SP);
 
-    PC = (hi << 8) | lo;
+        PC = (hi << 8) | lo;
+    }
+    else
+    {
+        SP++;
+        uint8_t hi = read(SP);
+        SP++;
+        uint8_t lo = read(SP);
+
+        PC = (hi << 8) | lo;
+    }
     return 0;
 }
 
@@ -1773,7 +1783,7 @@ uint8_t CPU::RTL()
     SP++;
     PBR = read(SP);
 
-    PC = (hi << 8) | lo;
+    PC = (PBR << 16) | (hi << 8) | lo;
     return 0;
 }
 
@@ -1810,7 +1820,7 @@ uint8_t CPU::SEI()
 
 uint8_t CPU::SEP()
 {
-    fetch();
+    fetched = fetch() & 0xFF;
     if (emulation_mode)
     {
         status = (fetched & (0xFF & ~((1 << 5) | (1 << 6)))) | status;
@@ -1824,7 +1834,6 @@ uint8_t CPU::SEP()
 
 uint8_t CPU::STA()
 {
-    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
     if (emulation_mode || GetFlag(M))
     {
         write(address_absolute, (A & 0xFF));
@@ -1834,19 +1843,15 @@ uint8_t CPU::STA()
         write(address_absolute, (A & 0xFF));
         write(address_absolute + 1, ((A & 0xFF00) >> 8));
     }
-    if (GetFlag(M))
-    {
-        return 0;
-    }
-    else
+    if (!GetFlag(M))
     {
         return 1;
     }
+    return 0;
 }
 
 uint8_t CPU::STX()
 {
-    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
     if (emulation_mode || GetFlag(INDEX))
     {
         write(address_absolute, (X & 0xFF));
@@ -1856,19 +1861,15 @@ uint8_t CPU::STX()
         write(address_absolute, (X & 0xFF));
         write(address_absolute + 1, ((X & 0xFF00) >> 8));
     }
-    if (GetFlag(INDEX))
-    {
-        return 0;
-    }
-    else
+    if (!GetFlag(INDEX))
     {
         return 1;
     }
+    return 0;
 }
 
 uint8_t CPU::STY()
 {
-    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
     if (emulation_mode || GetFlag(INDEX))
     {
         write(address_absolute, (Y & 0xFF));
@@ -1878,14 +1879,11 @@ uint8_t CPU::STY()
         write(address_absolute, (Y & 0xFF));
         write(address_absolute + 1, ((Y & 0xFF00) >> 8));
     }
-    if (GetFlag(INDEX))
-    {
-        return 0;
-    }
-    else
+    if (!GetFlag(INDEX))
     {
         return 1;
     }
+    return 0;
 }
 
 uint8_t CPU::STP() // TODO: Erstmal übersprungen, es wird eine Reset routine benötigt
@@ -1895,13 +1893,20 @@ uint8_t CPU::STP() // TODO: Erstmal übersprungen, es wird eine Reset routine ben
 
 uint8_t CPU::STZ()
 {
-    uint8_t zusatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
-    address_absolute = 0;
+    if (emulation_mode || GetFlag(M))
+    {
+        write(address_absolute, 0);
+    }
+    else
+    {
+        write(address_absolute, 0);
+        write(address_absolute + 1, 0);
+    }
     if (!GetFlag(M))
     {
-        zusatzCycle++;
+        return 1;
     }
-    return zusatzCycle;
+    return 0;
 }
 
 uint8_t CPU::TAX()
@@ -1950,7 +1955,7 @@ uint8_t CPU::TCS()
 {
     if (emulation_mode)
     {
-        SP = (1 << 8) | A & 0xFF;
+        SP = 0x100 | A & 0xFF;
     }
     else
     {
@@ -1971,7 +1976,7 @@ uint8_t CPU::TSC()
 {
     if (emulation_mode)
     {
-        A = (1 << 8) | SP & 0xFF;
+        A = 0x100 | SP & 0xFF;
     }
     else
     {
@@ -2022,14 +2027,10 @@ uint8_t CPU::TXA()
 
 uint8_t CPU::TXS()
 {
-    if (emulation_mode)
+    if (emulation_mode || GetFlag(INDEX))
     {
-        SP = (1 << 8) | (X & 0xFF);
+        SP =  (X & 0xFF);
 
-    }
-    else if (GetFlag(INDEX))
-    {
-        SP = (X & 0xFF);
     }
     else
     {
@@ -2093,7 +2094,6 @@ uint8_t CPU::TYX()
 
 uint8_t CPU::TRB()
 {
-    uint8_t zustatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
     fetch();
     if (emulation_mode || GetFlag(M))
     {
@@ -2110,14 +2110,13 @@ uint8_t CPU::TRB()
     }
     if (!GetFlag(M))
     {
-        zustatzCycle += 2;
+        return 2;
     }
-    return zustatzCycle;
+    return 0;
 }
 
 uint8_t CPU::TSB()
 {
-    uint8_t zustatzCycle = ((DP & 0xFF) == 0) ? 0 : 1;
     fetch();
     if (emulation_mode || GetFlag(M))
     {
@@ -2135,9 +2134,9 @@ uint8_t CPU::TSB()
 
     if (!GetFlag(M))
     {
-        zustatzCycle += 2;
+        return 2;
     }
-    return zustatzCycle;
+    return 0;
 }
 
 uint8_t CPU::WAI() // TODO: Irgendwas mit Interrupts, gerade kein bock drauf
