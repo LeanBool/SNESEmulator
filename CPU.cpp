@@ -562,7 +562,30 @@ uint8_t CPU::ADC()
     fetch();
     if (GetFlag(D))
     {
+        uint16_t f4 = (fetched & 0xF);
+        uint16_t f3 = ((fetched & 0xF0)) >> 4;
+        uint16_t f2 = ((fetched & 0xF00) >> 8);
+        uint16_t f1 = ((fetched & 0xF000) >> 12);
 
+        uint16_t a4 = (A & 0xF);
+        uint16_t a3 = ((A & 0xF0)) >> 4;
+        uint16_t a2 = ((A & 0xF00) >> 8);
+        uint16_t a1 = ((A & 0xF000) >> 12);
+
+        uint16_t fetchedDecimal = f4 + f3 * 10 + f2 * 100 + f1 * 1000;
+        uint16_t accDecimal = a4 + a3 * 10 + a2 * 100 + a1 * 1000;
+
+        uint32_t res = fetchedDecimal + accDecimal;
+
+        uint16_t res4 = res % 10;
+        uint16_t res3 = (res % 100 - res4)/10;
+        uint16_t res2 = (res % 1000 - res4 - res3)/100;
+        uint16_t res1 = (res % 10000 - res4 - res3 - res2)/1000;
+
+        A = (res1 << 12) | (res2 << 8) | (res3 << 4) | res4;
+
+        SetFlag(N, A & 0x8000);
+        SetFlag(C, (res & 0xFF0000) != 0);
     }
     else
     {
@@ -1875,7 +1898,7 @@ uint8_t CPU::SBC() // TODO: Hier wirds Wild, wird später gemacht
         {
 
         }
-        
+
     }
     return 0;
 }

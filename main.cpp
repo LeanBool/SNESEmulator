@@ -67,6 +67,26 @@ void testProgramm3(CPU& cpu)
 		}
 	}
 }
+
+void testADCDecimalMode(CPU& cpu) {
+	//0000   A5 14                  LDA  0x9   
+	//0002   69 14                  ADC 0x33
+
+	std::vector<int> prog = { 0xA9, 0x33, 0x69, 0x33 };
+	for (int i = 0; i < prog.size(); i++) {
+		cpu.write(i, prog.at(i));
+	}
+
+	cpu.SetFlag(cpu.D, 1);
+	while (cpu.opcode != 0xEA) {
+		if (GetAsyncKeyState(VK_NUMPAD1) & 1)
+		{
+			cpu.clock();
+		}
+	}
+
+}
+
 void testBlockMove(CPU& cpu) {
 	//LDA #4
 	//LDX #0
@@ -95,7 +115,8 @@ int main() {
 	//testProgramm(cpu);
 	//testProgamm2(cpu);
 	//testProgramm3(cpu);
-	testBlockMove(cpu);
+	//testBlockMove(cpu);
+	testADCDecimalMode(cpu);
 
 	while (Window::Activ())
 	{
